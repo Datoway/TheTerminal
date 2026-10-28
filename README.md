@@ -4,6 +4,8 @@ A live 3D container-terminal operations game for the fictional **Port Mumbai**, 
 
 Run Terminal 2: berth ships, discharge imports, receive and load exports, plan import/export yard blocks, and manage the tide, wind, gate traffic and carrier trust.
 
+Vibe-coded with Claude Code + Opus 5.5
+
 ## Run locally
 
 No build step. Open `index.html` in a browser, or serve the folder:
