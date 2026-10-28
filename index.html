@@ -545,11 +545,11 @@ const THEMES = {
     night: 0, skyTop: 0xb9cfeb, skyHor: 0xe9eff6, stormTop: 0x8a98a9, stormHor: 0xc5cdd7, fogD: 0.0016,
     waterDeep: 0x4f8fd0, waterShallow: 0x9ccaee, grid: 0x2f5bea, gridAmt: 0.22, waterLight: 1.0, foam: 0xffffff,
     hemiSky: 0xffffff, hemiGround: 0xc4cfdc, hemi: 0.95, sun: 1.15, sunColor: 0xfffaf0,
-    slab: 0xd0d8e3, quayFace: 0xb4c0cf, hinter: 0xdbe2ea, shed: 0x2f5bea, crane: 0x2f5bea, craneDark: 0x24324d,
+    slab: 0xd0d8e3, quayFace: 0xb4c0cf, hinter: 0xdbe2ea, road: 0x3a4451, shed: 0x2f5bea, crane: 0x2f5bea, craneDark: 0x24324d,
     house: 0xffffff, rtg: 0xf2b43a, deck: 0x56606e, truckCab: 0x2f5bea, extCab: 0xffffff, chassis: 0x2c3544,
     leaf: 0x5cc46e, trunk: 0x8a6a4a, pole: 0x9aa8b8, rain: 0x5f7d9c, fender: 0x262c35, gateOff: 0xc3ccd8, gateOn: 0x22c55e,
-    ground: { base: '#e3e9f0', apron: '#edf1f6', speck: '60,80,110', speckA: 0.05, coping: '#f2b63c', copingDark: '#c9d2dd', rail: '#a9b5c4',
-      line: 'rgba(30,45,70,.30)', lineStrong: 'rgba(30,45,70,.42)', amber: 'rgba(217,119,6,.7)', aisle: 'rgba(30,45,70,.12)',
+    ground: { base: '#e3e9f0', apron: '#edf1f6', road: '#2e3844', speck: '60,80,110', speckA: 0.05, coping: '#f2b63c', copingDark: '#c9d2dd', rail: '#a9b5c4',
+      line: 'rgba(255,255,255,.85)', lineStrong: 'rgba(255,255,255,.95)', amber: 'rgba(217,119,6,.7)', aisle: 'rgba(255,255,255,.45)',
       blockFill: 'rgba(47,91,234,.07)', blockStroke: 'rgba(47,91,234,.5)', blockGrid: 'rgba(47,91,234,.12)', text: 'rgba(30,45,70,.5)',
       amberText: 'rgba(180,83,9,.65)', gateFill: 'rgba(245,158,11,.12)' },
     label: { bg: 'rgba(255,255,255,.97)', border: 'rgba(47,91,234,.55)', pri: 'rgba(217,119,6,.95)', text: '#0F172A', sub: '#5B6B82' },
@@ -559,10 +559,10 @@ const THEMES = {
     night: 1, skyTop: 0x030a14, skyHor: 0x0a1b2c, stormTop: 0x0a1118, stormHor: 0x1a2632, fogD: 0.0023,
     waterDeep: 0x03172a, waterShallow: 0x0e3c5c, grid: 0x5b82ff, gridAmt: 0.3, waterLight: 0.78, foam: 0x9cc0d8,
     hemiSky: 0x9cc6ff, hemiGround: 0x0b1a26, hemi: 0.55, sun: 0.5, sunColor: 0xa9c2ff,
-    slab: 0x18293a, quayFace: 0x223445, hinter: 0x0b1622, shed: 0x1b2f66, crane: 0x3f68e6, craneDark: 0x172235,
+    slab: 0x18293a, quayFace: 0x223445, hinter: 0x0b1622, road: 0x2c3743, shed: 0x1b2f66, crane: 0x3f68e6, craneDark: 0x172235,
     house: 0xc9d3de, rtg: 0xd8a038, deck: 0x2a333d, truckCab: 0x3f68e6, extCab: 0xcfd6de, chassis: 0x1b232c,
     leaf: 0x1d5a3c, trunk: 0x3a2c20, pole: 0x3a4a58, rain: 0xa8d4f0, fender: 0x0a0e13, gateOff: 0x31404e, gateOn: 0x4ade80,
-    ground: { base: '#0f1c29', apron: '#142638', speck: '150,175,200', speckA: 0.045, coping: '#b28a3c', copingDark: '#2b3c4c', rail: '#4a6278',
+    ground: { base: '#0f1c29', apron: '#142638', road: '#2c3743', speck: '150,175,200', speckA: 0.045, coping: '#b28a3c', copingDark: '#2b3c4c', rail: '#4a6278',
       line: 'rgba(232,238,244,.35)', lineStrong: 'rgba(232,238,244,.5)', amber: 'rgba(251,191,36,.55)', aisle: 'rgba(232,238,244,.12)',
       blockFill: 'rgba(91,130,255,.06)', blockStroke: 'rgba(140,165,255,.42)', blockGrid: 'rgba(232,238,244,.07)', text: 'rgba(232,238,244,.38)',
       amberText: 'rgba(251,191,36,.45)', gateFill: 'rgba(251,191,36,.07)' },
@@ -720,7 +720,7 @@ const M = {
   crane: std(0x2b87bd, 0.5, 0.4), craneDark: std(0x173247, 0.7, 0.3), house: std(0xdfe7ee, 0.6, 0.1),
   warn: std(0xffb547, 0.5, 0.2), rtg: std(0xd8a038, 0.5, 0.35), concrete: std(0x18293a, 0.95, 0.05),
   quayFace: std(0x223445, 0.95, 0.05), fender: std(0x0a0e13, 0.9, 0), deck: std(0x2a333d, 0.8, 0.2),
-  hinter: std(0x0b1622, 1, 0), shed: std(0x1d2c3b, 0.9, 0.1), tree: std(0x0d2420, 1, 0),
+  hinter: std(0x0b1622, 1, 0), road: std(0x3a4451, 0.95, 0), shed: std(0x1d2c3b, 0.9, 0.1), tree: std(0x0d2420, 1, 0),
   window: std(0x101f2b, 0.5, 0.1, { emissive: new THREE.Color(0xffd28a), emissiveIntensity: 0.2 }),
   lampHead: std(0x2a2418, 0.6, 0.3, { emissive: new THREE.Color(0xffb547), emissiveIntensity: 1 }),
   pole: std(0x3a4a58, 0.6, 0.5), truckCab: std(0xe3a33a, 0.5, 0.3), extCab: std(0xcfd6de, 0.5, 0.3),
@@ -772,6 +772,12 @@ function drawGround() {
     const [a, b] = P(x1, z1), [c, d] = P(x2, z2); g.strokeStyle = col; g.lineWidth = w; g.setLineDash(dash || []);
     g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); g.setLineDash([]);
   };
+  // asphalt under every lane trucks drive on
+  g.fillStyle = C.road;
+  const band = (x0, z0, x1, z1) => { const [a, b] = P(x0, z0), [c, d] = P(x1, z1); g.fillRect(a, b, c - a, d - b); };
+  [[QUAY_LANE, 1.5], [SPINE, 1.8], [-20.7, 1.2], [-38.7, 1.2], [-96, 1.8]].forEach(([z, hw]) => band(-120, z - hw, 120, z + hw));
+  [-90, -54, -18, 18, 54, 90, 104].forEach(x => band(x - 1.8, -98, x + 1.8, SPINE - 1.8));
+  band(-12, -110, 12, -96);
   dashed(-120, QUAY_LANE + 1.5, 120, QUAY_LANE + 1.5, C.line, 3, [30, 22]);
   dashed(-120, QUAY_LANE - 1.5, 120, QUAY_LANE - 1.5, C.line, 3, [30, 22]);
   dashed(-120, SPINE + 1.8, 120, SPINE + 1.8, C.lineStrong, 3);
@@ -815,8 +821,11 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { dr
     scene.add(box(1.4, 3.2, 0.7, M.fender, x, -1.6, 0.35, false));
     scene.add(mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.7, 8), M.craneDark, x + 3.7, 0.35, -0.5));
   }
-  // warehouses + a scatter of hinterland sheds
-  const sheds = [[-80, -128, 40, 9, 16], [-25, -132, 50, 11, 20], [40, -126, 30, 8, 14], [95, -134, 44, 10, 18], [-150, -170, 60, 12, 24], [150, -180, 50, 9, 20], [-40, -200, 80, 14, 26], [70, -230, 60, 10, 22]];
+  // gate approach road (gate lanes run x -9..9 from the gate out to z -175)
+  const gateRoad = new THREE.Mesh(new THREE.PlaneGeometry(24, 72), M.road);
+  gateRoad.rotation.x = -Math.PI / 2; gateRoad.position.set(0, 0.02, -146); gateRoad.receiveShadow = true; scene.add(gateRoad);
+  // warehouses + a scatter of hinterland sheds (keep clear of the gate road, |x| < 14)
+  const sheds = [[-80, -128, 40, 9, 16], [-38, -132, 40, 11, 20], [40, -126, 30, 8, 14], [95, -134, 44, 10, 18], [-150, -170, 60, 12, 24], [150, -180, 50, 9, 20], [70, -230, 60, 10, 22]];
   sheds.forEach(([x, z, w, h, d]) => {
     scene.add(box(w, h, d, M.shed, x, h / 2, z));
     for (let i = 0; i < Math.floor(w / 6); i++) scene.add(box(1.6, 0.6, 0.1, M.window, x - w / 2 + 3 + i * 6, h * 0.55, z + d / 2 + 0.06, false));
@@ -845,7 +854,7 @@ lhGlow.scale.set(18, 18, 1); lhGlow.position.copy(lighthouseLamp.position); scen
   const spots = [];
   for (let x = -112; x <= 112; x += 13) if (Math.abs(x) > 20) spots.push([x + rand(-2, 2), -113 + rand(-1.5, 1.5)]);
   for (let z = -100; z <= -22; z += 13) { spots.push([-117 + rand(-1, 1), z]); }
-  for (let i = 0; i < 26; i++) spots.push([rand(-200, 200), rand(-150, -260)]);
+  for (let i = 0; i < 26; i++) { const x = rand(-200, 200); if (Math.abs(x) > 16) spots.push([x, rand(-150, -260)]); }
   spots.forEach(([x, z]) => {
     const s = rand(0.85, 1.3);
     const t = mesh(trunkG, M.trunk, x, 1.2 * s, z); t.scale.setScalar(s); scene.add(t);
@@ -1936,7 +1945,7 @@ function applyTheme(name) {
   waterU.uDeep.value.setHex(TH.waterDeep); waterU.uShallow.value.setHex(TH.waterShallow);
   waterU.uGrid.value.setHex(TH.grid); waterU.uGridAmt.value = TH.gridAmt; waterU.uFoam.value.setHex(TH.foam);
   hemi.color.setHex(TH.hemiSky); hemi.groundColor.setHex(TH.hemiGround); sun.color.setHex(TH.sunColor);
-  M.concrete.color.setHex(TH.slab); M.quayFace.color.setHex(TH.quayFace); M.hinter.color.setHex(TH.hinter);
+  M.concrete.color.setHex(TH.slab); M.quayFace.color.setHex(TH.quayFace); M.hinter.color.setHex(TH.hinter); M.road.color.setHex(TH.road);
   M.shed.color.setHex(TH.shed); M.crane.color.setHex(TH.crane); M.craneDark.color.setHex(TH.craneDark);
   M.house.color.setHex(TH.house); M.rtg.color.setHex(TH.rtg); M.deck.color.setHex(TH.deck);
   M.truckCab.color.setHex(TH.truckCab); M.extCab.color.setHex(TH.extCab); M.chassis.color.setHex(TH.chassis);
