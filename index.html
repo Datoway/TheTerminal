@@ -282,6 +282,7 @@ h3 .ic{color:var(--primary)}
 .toast.warn .ic{color:var(--warn)}
 .toast b{color:var(--success);font-variant-numeric:tabular-nums}
 .tabbar{display:none}
+.dock{display:none}
 .seg button{font-size:12px;padding:6px 6px}
 .tabs.mini{padding:2px;flex:none}
 .tabs.mini button{padding:4px 9px;font-size:11.5px}
@@ -301,6 +302,18 @@ h3 .ic{color:var(--primary)}
 .dh .tabs button{padding:7px 6px}
 .steps .lb{font-size:11.5px}
 
+/* desktop panel dock: toggles the overview, tracking and berths panels */
+@media (min-width:901px){
+  .dock{display:flex;flex-direction:column;gap:2px;padding:4px;position:fixed;z-index:6;left:max(10px,env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%)}
+  .dock button{width:36px;height:36px;display:grid;place-items:center;border:0;background:transparent;border-radius:9px;cursor:pointer;color:var(--dim)}
+  .dock button:hover{background:var(--surface-2);color:var(--text)}
+  .dock button[aria-pressed="true"]{background:var(--primary-soft);color:var(--primary)}
+  .dock button:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+  .float{margin-left:48px;width:min(380px,calc(100% - 48px))}
+  #hud.hide-panel #panel,#hud.hide-track #track,#hud.hide-docks #docks{display:none}
+  #hud.hide-panel{grid-template-columns:minmax(0,1fr) 0;column-gap:0}
+  #docks{margin-left:auto}
+}
 @media (max-width:1240px){
   #hud{grid-template-columns:minmax(0,1fr) 336px}
   .kpi{width:188px}
@@ -484,6 +497,12 @@ h3 .ic{color:var(--primary)}
       <div class="dbody" id="dLog" hidden><ol class="log" id="log"></ol></div>
     </section>
   </footer>
+
+  <nav class="card dock" aria-label="Show or hide panels">
+    <button data-act="dock" data-id="panel" aria-pressed="true" aria-label="Terminal overview" title="Terminal overview"><svg class="ic"><use href="#i-grid"/></svg></button>
+    <button data-act="dock" data-id="track" aria-pressed="true" aria-label="Vessel tracking" title="Vessel tracking"><svg class="ic"><use href="#i-ship"/></svg></button>
+    <button data-act="dock" data-id="docks" aria-pressed="true" aria-label="Berths and anchorage" title="Berths and anchorage"><svg class="ic"><use href="#i-berth"/></svg></button>
+  </nav>
 
   <nav class="card tabbar" aria-label="Panels">
     <button data-act="mtab" data-id="panel"><svg class="ic"><use href="#i-grid"/></svg>Overview</button>
@@ -2318,6 +2337,10 @@ function onClick(e) {
   else if (act === 'ptab') setPtab(id);
   else if (act === 'dtab') setDtab(id);
   else if (act === 'mtab') openSheet(UI.sheet === id ? null : id);
+  else if (act === 'dock') {
+    const off = hud.classList.toggle('hide-' + id);
+    el.setAttribute('aria-pressed', String(!off));
+  }
   else if (act === 'sres') pickResult(+id);
   else if (act === 'buy') { buy(id); forceRender(); }
   else if (act === 'crane') {
