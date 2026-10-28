@@ -6,6 +6,8 @@ Run Terminal 2: berth ships, discharge imports, receive and load exports, plan i
 
 Vibe-coded with Claude Code + Opus 5.5
 
+Enjoy the Game 🎮 https://datoway.github.io/TheTerminal/
+
 ## Run locally
 
 No build step. Open `index.html` in a browser, or serve the folder:
