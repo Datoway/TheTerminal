@@ -1,0 +1,2437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="TheTerminal: a live 3D container terminal operations game for the fictional Port Mumbai.">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>TheTerminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: full-bleed isometric terminal; top app bar, KPI cards top-left, terminal card right, vessel tracking bottom-left, berths/anchorage card bottom-right. Light = daylight ops board, dark = night shift. */
+:root{
+  --bg:#EDF1F7; --surface:#FFFFFF; --surface-2:#F3F6FB; --glass:rgba(255,255,255,.95);
+  --line:#E3E8F0; --line-strong:#CDD6E3;
+  --text:#0F172A; --muted:#5B6B82; --dim:#94A3B8;
+  --primary:#2F5BEA; --primary-strong:#2449C7; --primary-soft:#E9EEFD; --on-primary:#FFFFFF;
+  --success:#15803D; --success-soft:#DCFCE7;
+  --warn:#B45309; --warn-soft:#FEF3C7;
+  --danger:#DC2626; --danger-soft:#FEE2E2;
+  --shadow:0 10px 30px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.06);
+  --shadow-sm:0 1px 2px rgba(15,23,42,.08);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#09111E; --surface:#0F1A2C; --surface-2:#16233A; --glass:rgba(13,23,40,.93);
+  --line:#1F2E47; --line-strong:#2D4062;
+  --text:#E8EEF6; --muted:#97A7BF; --dim:#61738F;
+  --primary:#5B82FF; --primary-strong:#86A3FF; --primary-soft:rgba(91,130,255,.16); --on-primary:#FFFFFF;
+  --success:#4ADE80; --success-soft:rgba(74,222,128,.13);
+  --warn:#FBBF24; --warn-soft:rgba(251,191,36,.14);
+  --danger:#F87171; --danger-soft:rgba(248,113,113,.15);
+  --shadow:0 12px 34px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#09111E; --surface:#0F1A2C; --surface-2:#16233A; --glass:rgba(13,23,40,.93);
+  --line:#1F2E47; --line-strong:#2D4062;
+  --text:#E8EEF6; --muted:#97A7BF; --dim:#61738F;
+  --primary:#5B82FF; --primary-strong:#86A3FF; --primary-soft:rgba(91,130,255,.16); --on-primary:#FFFFFF;
+  --success:#4ADE80; --success-soft:rgba(74,222,128,.13);
+  --warn:#FBBF24; --warn-soft:rgba(251,191,36,.14);
+  --danger:#F87171; --danger-soft:rgba(248,113,113,.15);
+  --shadow:0 12px 34px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.3);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--f);font-size:14px;overflow:hidden;-webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01"}
+[hidden]{display:none!important}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.muted{color:var(--muted)}
+
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;outline:none}
+#scene.dragging{cursor:grabbing}
+#scene.hovering{cursor:pointer}
+#boot{position:fixed;inset:0;display:grid;place-items:center;font-weight:600;color:var(--muted);background:var(--bg);z-index:50;transition:opacity .5s}
+#boot.gone{opacity:0;pointer-events:none}
+
+/* ---------- shared pieces ---------- */
+.card{pointer-events:auto;background:var(--glass);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.tile{width:36px;height:36px;border-radius:10px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;flex:none}
+.tile .ic{width:19px;height:19px}
+.tile.sm{width:30px;height:30px;border-radius:8px}
+.tile.sm .ic{width:16px;height:16px}
+.tile.soft{background:var(--primary-soft);color:var(--primary)}
+.tile.ok{background:var(--success-soft);color:var(--success)}
+.tile.warn{background:var(--warn-soft);color:var(--warn)}
+.tile.crit{background:var(--danger-soft);color:var(--danger)}
+h3{margin:0;font-size:13px;font-weight:700;letter-spacing:-.005em;display:flex;align-items:center;gap:8px}
+h3 .ic{color:var(--primary)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;line-height:1;padding:5px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--success-soft);color:var(--success)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--danger-soft);color:var(--danger)}
+.pill.info{background:var(--primary-soft);color:var(--primary)}
+.delta{font-size:11.5px;font-weight:600;padding:3px 7px;border-radius:7px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.delta.up{background:var(--success-soft);color:var(--success)}
+.delta.down{background:var(--danger-soft);color:var(--danger)}
+.delta.flat{background:var(--surface-2);color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;padding:7px 12px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.btn.primary:hover:not(:disabled){background:var(--primary-strong);border-color:var(--primary-strong);color:var(--on-primary)}
+.btn.soft{background:var(--primary-soft);border-color:transparent;color:var(--primary)}
+.btn.sm{padding:5px 9px;font-size:11.5px;border-radius:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.iconbtn{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;color:var(--muted);flex:none}
+.iconbtn:hover{color:var(--primary);border-color:var(--line-strong)}
+.iconbtn.sm{width:28px;height:28px;border-radius:8px}
+.iconbtn.sm .ic{width:15px;height:15px}
+.tabs{display:flex;gap:3px;background:var(--surface-2);padding:3px;border-radius:10px;border:1px solid var(--line)}
+.tabs button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:transparent;border:0;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.tabs button b{font-weight:600;color:var(--dim);font-variant-numeric:tabular-nums}
+.tabs button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.tabs button.on b{color:var(--primary)}
+.bar{height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+.bar i{display:block;height:100%;width:0;background:var(--primary);border-radius:4px;transition:width .5s,background .3s}
+.bar i.warn{background:var(--warn)}
+.bar i.crit{background:var(--danger)}
+.empty{font-size:12.5px;color:var(--muted);padding:10px 2px;line-height:1.45}
+.ldot{display:inline-block;width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(15,23,42,.25);flex:none}
+
+/* ---------- top app bar ---------- */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:15;display:flex;align-items:center;gap:14px;
+  padding-block:calc(env(safe-area-inset-top,0px) + 10px) 10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--glass);border-bottom:1px solid var(--line);box-shadow:var(--shadow-sm);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.brand{display:flex;align-items:center;gap:10px;flex:none}
+.brand .tile{width:34px;height:34px}
+.wordmark{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.search{position:relative;flex:1;max-width:440px;min-width:0}
+.search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
+.search input{width:100%;height:40px;border-radius:11px;border:1px solid var(--line);background:var(--surface-2);padding:0 40px 0 36px;font:inherit;font-size:13.5px;color:var(--text);outline:none}
+.search input::placeholder{color:var(--dim)}
+.search input:focus{border-color:var(--primary);background:var(--surface);box-shadow:0 0 0 3px var(--primary-soft)}
+.search kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 11px var(--f);color:var(--dim);border:1px solid var(--line-strong);border-radius:6px;padding:2px 6px}
+.qres{position:absolute;top:46px;left:0;right:0;padding:6px;display:flex;flex-direction:column;gap:2px;z-index:30}
+.qres button{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;background:transparent;border:0;border-radius:9px;padding:6px 8px;cursor:pointer}
+.qres button:hover,.qres button.on{background:var(--surface-2)}
+.qres .t{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qres .s{font-size:11.5px;color:var(--muted)}
+.site{display:flex;align-items:center;gap:10px;padding:5px 12px 5px 5px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;text-align:left;min-width:0}
+.site:hover{border-color:var(--line-strong)}
+.site .t{font-weight:700;font-size:13px;white-space:nowrap}
+.site .s{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.site .chev{color:var(--dim)}
+.tb-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.livechip{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--success-soft);color:var(--success);font-weight:600;font-size:12.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.livechip i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:ping 1.8s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.speed{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.speed button{background:transparent;border:0;padding:0 10px;height:34px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--muted);min-width:36px;font-variant-numeric:tabular-nums}
+.speed button+button{border-left:1px solid var(--line)}
+.speed button:hover{color:var(--primary)}
+.speed button.on{background:var(--primary);color:var(--on-primary)}
+.who{display:flex;align-items:center;gap:10px;padding-left:12px;border-left:1px solid var(--line)}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:12.5px}
+.who .t{font-weight:700;font-size:13px;white-space:nowrap}
+.who .s{font-size:11.5px;color:var(--muted);white-space:nowrap}
+
+/* ---------- HUD grid ---------- */
+#hud{position:fixed;left:0;right:0;bottom:0;top:var(--hh,64px);pointer-events:none;display:grid;
+  grid-template-columns:minmax(0,1fr) 372px;grid-template-rows:auto minmax(0,1fr) auto;gap:14px;
+  padding-block:14px calc(env(safe-area-inset-bottom,0px) + 14px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.kpis{grid-column:1;grid-row:1;display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;justify-self:start;min-width:0}
+.kpi{pointer-events:auto;width:212px;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center}
+.kpi .lb{grid-column:1/-1;font-size:12px;font-weight:600;color:var(--muted)}
+.kpi .vv{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;min-width:0}
+.kpi .v{font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi .v small{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:0}
+.kpi .v.crit{color:var(--danger)}
+.kpi .sb{grid-column:1/-1;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .sb.warn{color:var(--warn)}
+.kpi .sb.crit{color:var(--danger)}
+.stage{grid-column:1;grid-row:2;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;min-height:0}
+.float{display:flex;flex-direction:column;gap:10px;width:min(380px,100%);min-width:0}
+.mapctl{pointer-events:auto;display:flex;flex-direction:column;padding:4px;gap:2px;margin-left:auto}
+.mapctl button{width:36px;height:36px;display:grid;place-items:center;border:0;background:transparent;border-radius:9px;cursor:pointer;color:var(--muted)}
+.mapctl button:hover{background:var(--surface-2);color:var(--primary)}
+.mapctl hr{border:0;border-top:1px solid var(--line);margin:2px 4px}
+.bottom{grid-column:1/-1;grid-row:3;display:flex;gap:14px;align-items:flex-end;justify-content:space-between;min-width:0}
+
+/* ---------- terminal panel ---------- */
+#panel{grid-column:2;grid-row:1/3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{padding:14px 14px 12px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line)}
+.phead{display:flex;gap:12px;align-items:center}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--primary)}
+.ptitle{font-size:17px;font-weight:800;letter-spacing:-.015em;line-height:1.2}
+.psub{font-size:12px;color:var(--muted)}
+.pstat{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px}
+.scroll{overflow-y:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:16px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metric{border:1px solid var(--line);background:var(--surface);border-radius:11px;padding:10px 11px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.metric .k{font-size:11.5px;color:var(--muted);font-weight:500}
+.metric .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.metric .s{font-size:11px;color:var(--dim)}
+.sect{display:flex;flex-direction:column;gap:9px}
+.sh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11.5px}
+.rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;line-height:1.35}
+.row.click{cursor:pointer}
+.row.click:hover{border-color:var(--line-strong)}
+.row .t{font-weight:600}
+.row .n{font-weight:700;font-variant-numeric:tabular-nums;text-align:right;display:flex;gap:10px;align-items:center}
+#spark{width:100%;height:58px;display:block}
+.sparkax{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.item{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px;display:grid;grid-template-columns:36px minmax(0,1fr);gap:4px 12px}
+.item .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.item .t{font-weight:700;font-size:13.5px}
+.item .own{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.item p{grid-column:2;margin:0;font-size:12.5px;color:var(--muted);line-height:1.45}
+.item .act{grid-column:2;display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.item .price{font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ---------- bottom cards ---------- */
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 0}
+.tnav{display:flex;align-items:center;gap:6px;font-size:12px}
+#track{flex:1 1 auto;max-width:680px;min-width:0;display:flex;flex-direction:column}
+.trk{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;padding:12px 14px 14px;align-items:center}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.steps li{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;min-width:0}
+.steps li:not(:first-child)::before{content:"";position:absolute;top:15px;right:50%;width:100%;height:2px;background:var(--line-strong)}
+.steps li.done::before,.steps li.cur::before{background:var(--primary)}
+.steps .dot{position:relative;z-index:1;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:2px solid var(--line-strong);color:var(--dim)}
+.steps .dot .ic{width:15px;height:15px}
+.steps li.done .dot{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.steps li.cur .dot{border-color:var(--primary);color:var(--primary);box-shadow:0 0 0 4px var(--primary-soft)}
+.steps .lb{font-size:12px;font-weight:600;white-space:nowrap}
+.steps li.todo .lb{color:var(--muted)}
+.steps .tm{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.steps li.cur .tm{color:var(--primary);font-weight:600}
+.vcard{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:11px;cursor:pointer}
+.vcard:hover{border-color:var(--line-strong)}
+.vinfo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.vid{font-size:11.5px;font-weight:700;color:var(--primary);display:flex;gap:6px;align-items:center}
+.vname{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vsub{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vrow{display:flex;align-items:center;gap:8px;font-size:11.5px;flex-wrap:wrap}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.insp{padding:12px 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.insp .metric .v{font-size:14px}
+.insp-acts{padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
+#docks{flex:none;width:440px;max-height:300px;display:flex;flex-direction:column;overflow:hidden}
+.dh{display:flex;align-items:center;gap:10px;padding:12px 14px 10px}
+.dh .tabs{flex:1}
+.dbody{overflow-y:auto;min-height:0;padding:0 14px 14px;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+.drow{display:grid;grid-template-columns:58px minmax(0,1fr) auto 70px auto;gap:10px;align-items:center;padding:8px 9px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:12.5px}
+.drow:hover{border-color:var(--line-strong)}
+.drow.locked{border-style:dashed;cursor:default}
+.drow .dl{display:flex;flex-direction:column;line-height:1.25}
+.drow .dl b{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.drow .dl span,.drow .msub{font-size:11px;color:var(--muted)}
+.drow .dm{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vchip{display:flex;align-items:center;gap:6px;font-weight:600;min-width:0}
+.vchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vchip .ic{width:15px;height:15px;color:var(--primary)}
+.drow .dp{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.chev{color:var(--dim);display:grid;place-items:center}
+.switch{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);justify-content:space-between;padding:2px 2px 4px}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .sw{position:relative;width:32px;height:18px;border-radius:10px;background:var(--line-strong);transition:background .2s;flex:none}
+.switch .sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:var(--shadow-sm);transition:transform .2s}
+.switch input:checked+.sw{background:var(--primary)}
+.switch input:checked+.sw::after{transform:translateX(14px)}
+.switch input:focus-visible+.sw{outline:2px solid var(--primary);outline-offset:2px}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.log li{display:grid;grid-template-columns:42px minmax(0,1fr);gap:10px;font-size:12.5px;line-height:1.4;padding:5px 2px;border-bottom:1px solid var(--line)}
+.log li .t{color:var(--dim);font-variant-numeric:tabular-nums;font-size:11.5px;padding-top:1px}
+.log li.good span{color:var(--success)}
+.log li.warn span{color:var(--warn)}
+.log li.crit span{color:var(--danger)}
+
+/* ---------- floating cards & toasts ---------- */
+.fcard{padding:13px 14px;display:flex;flex-direction:column;gap:9px;animation:rise .35s ease-out}
+@keyframes rise{from{transform:translateY(8px);opacity:.3}to{transform:none;opacity:1}}
+.fcard .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.fcard .hl{display:flex;gap:11px;align-items:center}
+.fcard .ttl{font-weight:700;font-size:14.5px;line-height:1.25}
+.fcard .st{font-size:12px;color:var(--muted)}
+.fcard p{margin:0;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.fcard kbd{font:600 11px var(--f);border:1px solid var(--line-strong);border-radius:5px;padding:1px 5px;color:var(--text);background:var(--surface-2)}
+.fcard.contract{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
+.x{background:transparent;border:0;color:var(--dim);cursor:pointer;padding:2px;border-radius:6px;display:grid;place-items:center}
+.x:hover{color:var(--text);background:var(--surface-2)}
+#toasts{position:fixed;left:50%;top:calc(var(--hh,64px) + 12px);transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;z-index:20;width:min(460px,calc(100% - 32px))}
+.toast{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 12px;font-size:12.5px;animation:rise .3s ease-out;box-shadow:var(--shadow)}
+.toast .ic{color:var(--primary)}
+.toast.good .ic{color:var(--success)}
+.toast.warn .ic{color:var(--warn)}
+.toast b{color:var(--success);font-variant-numeric:tabular-nums}
+.tabbar{display:none}
+.seg button{font-size:12px;padding:6px 6px}
+.tabs.mini{padding:2px;flex:none}
+.tabs.mini button{padding:4px 9px;font-size:11.5px}
+.note{margin:0;font-size:12px;line-height:1.5;color:var(--muted)}
+.brow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
+.brow:hover{border-color:var(--line-strong)}
+.bl{display:flex;flex-direction:column;gap:5px;min-width:0}
+.bl .t{font-weight:700;font-size:13px}
+.bl .muted{font-size:11.5px;font-variant-numeric:tabular-nums}
+.cbar{display:flex;height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+.cbar i{display:block;height:100%}
+.cbar .ci{background:var(--primary)}
+.cbar .ce{background:var(--warn)}
+.legend{display:flex;gap:12px;font-size:11.5px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
+.drow.static{cursor:default}
+.dh .tabs button{padding:7px 6px}
+.steps .lb{font-size:11.5px}
+
+@media (max-width:1240px){
+  #hud{grid-template-columns:minmax(0,1fr) 336px}
+  .kpi{width:188px}
+  .who{display:none}
+  .trk{grid-template-columns:minmax(0,1fr)}
+  #docks{width:400px}
+}
+@media (max-width:1020px){ .site{display:none} }
+@media (max-width:900px){
+  .topbar{gap:8px}
+  .search,.livechip .lbl{display:none}
+  .wordmark{font-size:17px}
+  .speed button{min-width:32px;padding:0 7px}
+  #hud{grid-template-columns:minmax(0,1fr);gap:10px;padding-block:10px calc(env(safe-area-inset-bottom,0px) + 80px)}
+  .kpis{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none;pointer-events:auto;padding-bottom:2px}
+  .kpis::-webkit-scrollbar{display:none}
+  .kpi{flex:none;width:184px}
+  .float{width:min(340px,calc(100% - 56px))}
+  #panel,#track,#docks{display:none;position:fixed;z-index:6;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 76px);max-height:min(60vh,560px);width:auto;max-width:none}
+  #panel.open,#track.open,#docks.open{display:flex}
+  #track.open{overflow-y:auto}
+  .steps .lb{font-size:11px}
+  .tabbar{display:flex;pointer-events:auto;position:fixed;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);padding:5px;gap:4px}
+  .tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:transparent;border:0;border-radius:10px;padding:7px 4px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer}
+  .tabbar button.on{background:var(--primary-soft);color:var(--primary)}
+  #toasts{top:calc(var(--hh,64px) + 110px)}
+}
+@media (max-width:520px){
+  .speed button[data-id="2"]{display:none}
+  .wordmark{display:none}
+  .tb-right{gap:8px}
+  .drow{grid-template-columns:52px minmax(0,1fr) auto auto}
+  .drow .dp{display:none}
+}
+@media (prefers-reduced-motion:reduce){ .fcard,.toast,.livechip i{animation:none} }
+</style>
+
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-ship" viewBox="0 0 24 24"><path d="M3 14h18l-2.6 5H5.6z"/><path d="M6 14v-4h5v4M11 11h4v3M14 7h3v4"/></symbol>
+  <symbol id="i-crane" viewBox="0 0 24 24"><path d="M6 21V4h13M6 4 3 8M10 4v3M17 4v6M15 10h4v3h-4zM3 21h7"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></symbol>
+  <symbol id="i-stack" viewBox="0 0 24 24"><rect x="3" y="13" width="8" height="6" rx="1.2"/><rect x="13" y="13" width="8" height="6" rx="1.2"/><rect x="8" y="5.5" width="8" height="6" rx="1.2"/></symbol>
+  <symbol id="i-gate" viewBox="0 0 24 24"><path d="M4 20V7l8-3 8 3v13M4 11h16M9 20v-5h6v5"/></symbol>
+  <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.6c-.5-1-1.5-1.6-2.6-1.6-1.5 0-2.6.8-2.6 2s1 1.7 2.6 2 2.6.8 2.6 2-1.1 2-2.6 2c-1.1 0-2.1-.6-2.6-1.6M12 6.4V8M12 16v1.6"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5 21.5 20h-19z"/><path d="M12 10v4.2M12 17.2v.1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13a7 7 0 0 0 14 0M8.5 10.5h7"/></symbol>
+  <symbol id="i-berth" viewBox="0 0 24 24"><path d="M3 19h18M5 19v-8h14v8M9 11V7h6v4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v5h-5"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 13h6l-1 8 8-10h-6z"/></symbol>
+  <symbol id="i-storm" viewBox="0 0 24 24"><path d="M7 17a4 4 0 0 1-.5-8A5.5 5.5 0 0 1 17 8a3.5 3.5 0 0 1 .5 7"/><path d="M13 12l-2 4h3l-2 4"/></symbol>
+  <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21 9.5 18l8.4-8.4-1.3-1.3a4 4 0 0 1-5-5l2.6 2.6 2-2z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+</svg>
+
+<canvas id="scene" tabindex="0" aria-label="Live 3D view of the Port Mumbai container terminal"></canvas>
+<div id="boot">Raising the cranes…</div>
+
+<header class="topbar" id="topbar">
+  <div class="brand">
+    <span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-wave"/></svg></span>
+    <span class="wordmark">TheTerminal</span>
+  </div>
+  <div class="search">
+    <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+    <input id="q" type="search" autocomplete="off" placeholder="Search vessels, cranes, blocks, tractors…" aria-label="Search the terminal">
+    <kbd>/</kbd>
+    <div class="qres card" id="qres" hidden></div>
+  </div>
+  <button class="site" data-act="home" title="Reset the view to the whole terminal">
+    <span class="tile sm"><svg class="ic" aria-hidden="true"><use href="#i-crane"/></svg></span>
+    <span><span class="t" style="display:block">Port Mumbai · T2</span><span class="s" id="siteSub">—</span></span>
+    <svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg>
+  </button>
+  <div class="tb-right">
+    <span class="livechip"><i></i><span class="lbl">Live</span><span id="clock">Day 1 · 07:20</span></span>
+    <div class="speed" role="group" aria-label="Simulation speed">
+      <button data-act="speed" data-id="0" title="Pause (Space)" aria-label="Pause">II</button>
+      <button data-act="speed" data-id="1" class="on" title="Normal speed (1)">1×</button>
+      <button data-act="speed" data-id="2" title="Double speed (2)">2×</button>
+      <button data-act="speed" data-id="4" title="Fast forward (3)">4×</button>
+    </div>
+    <button class="iconbtn" id="themeBtn" data-act="theme" aria-label="Switch theme"></button>
+    <div class="who">
+      <span class="avatar">HM</span>
+      <span><span class="t" style="display:block">You</span><span class="s">Harbourmaster</span></span>
+    </div>
+  </div>
+</header>
+<div id="toasts" aria-live="polite"></div>
+
+<div id="hud">
+  <section class="kpis" aria-label="Key figures">
+    <div class="card kpi"><span class="lb">Treasury</span><span class="tile"><svg class="ic"><use href="#i-coin"/></svg></span><span class="vv"><span class="v" id="kCash">—</span><span class="delta flat" id="dCash">—</span></span><span class="sb" id="sCash">—</span></div>
+    <div class="card kpi"><span class="lb">Quay throughput</span><span class="tile"><svg class="ic"><use href="#i-pulse"/></svg></span><span class="vv"><span class="v" id="kLph">—</span><span class="delta flat" id="dLph">—</span></span><span class="sb" id="sLph">—</span></div>
+    <div class="card kpi"><span class="lb">Carrier trust</span><span class="tile"><svg class="ic"><use href="#i-shield"/></svg></span><span class="vv"><span class="v" id="kRep">—</span><span class="delta flat" id="dRep">—</span></span><span class="sb" id="sRep">—</span></div>
+    <div class="card kpi"><span class="lb">Tide &amp; wind</span><span class="tile"><svg class="ic"><use href="#i-wave"/></svg></span><span class="vv"><span class="v" id="kTide">—</span><span class="delta flat" id="dTide">—</span></span><span class="sb" id="sTide">—</span></div>
+  </section>
+
+  <div class="stage">
+    <div class="float" id="float"></div>
+    <div class="card mapctl" role="group" aria-label="Map controls">
+      <button data-act="zin" aria-label="Zoom in" title="Zoom in"><svg class="ic"><use href="#i-plus"/></svg></button>
+      <button data-act="zout" aria-label="Zoom out" title="Zoom out"><svg class="ic"><use href="#i-minus"/></svg></button>
+      <hr>
+      <button data-act="rot" aria-label="Rotate view" title="Rotate 45°"><svg class="ic"><use href="#i-rotate"/></svg></button>
+      <button data-act="home" aria-label="Reset view" title="Reset view"><svg class="ic"><use href="#i-home"/></svg></button>
+    </div>
+  </div>
+
+  <aside class="card" id="panel" aria-label="Terminal overview">
+    <div class="ph">
+      <div class="phead">
+        <span class="tile"><svg class="ic"><use href="#i-crane"/></svg></span>
+        <div style="min-width:0"><div class="eyebrow">Terminal · T2</div><div class="ptitle">Mumbai Container Terminal</div><div class="psub">Quay 2, Port Mumbai harbour</div></div>
+      </div>
+      <div class="pstat"><span class="pill ok" id="opPill">Operational</span><span class="muted" id="opLine">—</span></div>
+      <div class="tabs" role="tablist">
+        <button data-act="ptab" data-id="overview" class="on" role="tab">Overview</button>
+        <button data-act="ptab" data-id="yard" role="tab">Yard plan</button>
+        <button data-act="ptab" data-id="build" role="tab">Build</button>
+      </div>
+    </div>
+    <div class="scroll" id="pOverview">
+      <div class="mgrid">
+        <div class="metric"><span class="k">Berth use</span><span class="v" id="kBerth">—</span><div class="bar"><i id="mBerth"></i></div></div>
+        <div class="metric"><span class="k">Yard fill</span><span class="v" id="kYard">—</span><div class="cbar"><i class="ci" id="mYardI"></i><i class="ce" id="mYardE"></i></div><span class="s" id="kYardS">—</span></div>
+        <div class="metric"><span class="k">Avg anchor wait</span><span class="v" id="kWait">—</span><span class="s" id="kQueue">—</span></div>
+        <div class="metric"><span class="k">Gate moves</span><span class="v" id="kGate">—</span><span class="s" id="kGateS">—</span></div>
+        <div class="metric"><span class="k">Import dwell</span><span class="v" id="kDwI">—</span><span class="s" id="kDwIS">—</span></div>
+        <div class="metric"><span class="k">Export dwell</span><span class="v" id="kDwE">—</span><span class="s" id="kDwES">—</span></div>
+      </div>
+      <div class="sect">
+        <div class="sh"><h3>Quay throughput</h3><span class="muted">lifts / hr · last 6 h</span></div>
+        <svg id="spark" viewBox="0 0 300 58" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sparkax"><span id="spMin">—</span><span id="spMax">—</span></div>
+      </div>
+      <div class="sect"><div class="sh"><h3>Watch list</h3></div><ul class="rows" id="alerts"></ul></div>
+      <div class="sect"><div class="sh"><h3>Yard blocks</h3><span class="muted">boxes stacked</span></div><ul class="rows" id="blocks"></ul></div>
+      <div class="sect"><div class="sh"><h3>Tractor fleet</h3><span class="muted" id="fleetTxt">—</span></div><div class="bar"><i id="mFleet"></i></div><span class="muted" style="font-size:12px" id="fleetSub">—</span></div>
+    </div>
+    <div class="scroll" id="pYard" hidden></div>
+    <div class="scroll" id="pBuild" hidden><div class="rows" id="build"></div></div>
+  </aside>
+
+  <footer class="bottom">
+    <section class="card" id="track" aria-label="Vessel tracking"></section>
+    <section class="card" id="docks" aria-label="Berths and anchorage">
+      <div class="dh">
+        <div class="tabs" role="tablist">
+          <button data-act="dtab" data-id="berths" class="on">Berths <b id="cB">—</b></button>
+          <button data-act="dtab" data-id="sched">Schedule <b id="cS">—</b></button>
+          <button data-act="dtab" data-id="anch">Anchorage <b id="cA">—</b></button>
+          <button data-act="dtab" data-id="log">Log</button>
+        </div>
+      </div>
+      <div class="dbody" id="dBerths"></div>
+      <div class="dbody" id="dAnch" hidden>
+        <label class="switch"><span>Auto-berth in priority, then arrival order</span><input type="checkbox" id="auto" checked><span class="sw"></span></label>
+        <div id="queue" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+      <div class="dbody" id="dSched" hidden></div>
+      <div class="dbody" id="dLog" hidden><ol class="log" id="log"></ol></div>
+    </section>
+  </footer>
+
+  <nav class="card tabbar" aria-label="Panels">
+    <button data-act="mtab" data-id="panel"><svg class="ic"><use href="#i-grid"/></svg>Overview</button>
+    <button data-act="mtab" data-id="docks"><svg class="ic"><use href="#i-berth"/></svg>Berths</button>
+    <button data-act="mtab" data-id="track"><svg class="ic"><use href="#i-map"/></svg>Track</button>
+    <button data-act="mtab" data-id="build"><svg class="ic"><use href="#i-crane"/></svg>Build</button>
+  </nav>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+if (!window.THREE) { $('#boot').textContent = 'The 3D engine did not load. Check your connection and reload.'; return; }
+
+/* ====================================================================
+   Helpers
+   ==================================================================== */
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+const approach = (v, t, s) => v < t ? Math.min(t, v + s) : Math.max(t, v - s);
+const angDiff = (a, b) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+const hexCss = h => '#' + h.toString(16).padStart(6, '0');
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const money = n => { const s = n < 0 ? '−' : ''; n = Math.abs(n); return s + '$' + (n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : Math.round(n)); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+/* ====================================================================
+   Themes: one palette for the UI tokens, one for the 3D scene
+   ==================================================================== */
+const THEMES = {
+  light: {
+    night: 0, skyTop: 0xb9cfeb, skyHor: 0xe9eff6, stormTop: 0x8a98a9, stormHor: 0xc5cdd7, fogD: 0.0016,
+    waterDeep: 0x4f8fd0, waterShallow: 0x9ccaee, grid: 0x2f5bea, gridAmt: 0.22, waterLight: 1.0, foam: 0xffffff,
+    hemiSky: 0xffffff, hemiGround: 0xc4cfdc, hemi: 0.95, sun: 1.15, sunColor: 0xfffaf0,
+    slab: 0xd0d8e3, quayFace: 0xb4c0cf, hinter: 0xdbe2ea, shed: 0x2f5bea, crane: 0x2f5bea, craneDark: 0x24324d,
+    house: 0xffffff, rtg: 0xf2b43a, deck: 0x56606e, truckCab: 0x2f5bea, extCab: 0xffffff, chassis: 0x2c3544,
+    leaf: 0x5cc46e, trunk: 0x8a6a4a, pole: 0x9aa8b8, rain: 0x5f7d9c, fender: 0x262c35, gateOff: 0xc3ccd8, gateOn: 0x22c55e,
+    ground: { base: '#e3e9f0', apron: '#edf1f6', speck: '60,80,110', speckA: 0.05, coping: '#f2b63c', copingDark: '#c9d2dd', rail: '#a9b5c4',
+      line: 'rgba(30,45,70,.30)', lineStrong: 'rgba(30,45,70,.42)', amber: 'rgba(217,119,6,.7)', aisle: 'rgba(30,45,70,.12)',
+      blockFill: 'rgba(47,91,234,.07)', blockStroke: 'rgba(47,91,234,.5)', blockGrid: 'rgba(47,91,234,.12)', text: 'rgba(30,45,70,.5)',
+      amberText: 'rgba(180,83,9,.65)', gateFill: 'rgba(245,158,11,.12)' },
+    label: { bg: 'rgba(255,255,255,.97)', border: 'rgba(47,91,234,.55)', pri: 'rgba(217,119,6,.95)', text: '#0F172A', sub: '#5B6B82' },
+    pin: '#2F5BEA', danger: '#DC2626',
+  },
+  dark: {
+    night: 1, skyTop: 0x030a14, skyHor: 0x0a1b2c, stormTop: 0x0a1118, stormHor: 0x1a2632, fogD: 0.0023,
+    waterDeep: 0x03172a, waterShallow: 0x0e3c5c, grid: 0x5b82ff, gridAmt: 0.3, waterLight: 0.78, foam: 0x9cc0d8,
+    hemiSky: 0x9cc6ff, hemiGround: 0x0b1a26, hemi: 0.55, sun: 0.5, sunColor: 0xa9c2ff,
+    slab: 0x18293a, quayFace: 0x223445, hinter: 0x0b1622, shed: 0x1b2f66, crane: 0x3f68e6, craneDark: 0x172235,
+    house: 0xc9d3de, rtg: 0xd8a038, deck: 0x2a333d, truckCab: 0x3f68e6, extCab: 0xcfd6de, chassis: 0x1b232c,
+    leaf: 0x1d5a3c, trunk: 0x3a2c20, pole: 0x3a4a58, rain: 0xa8d4f0, fender: 0x0a0e13, gateOff: 0x31404e, gateOn: 0x4ade80,
+    ground: { base: '#0f1c29', apron: '#142638', speck: '150,175,200', speckA: 0.045, coping: '#b28a3c', copingDark: '#2b3c4c', rail: '#4a6278',
+      line: 'rgba(232,238,244,.35)', lineStrong: 'rgba(232,238,244,.5)', amber: 'rgba(251,191,36,.55)', aisle: 'rgba(232,238,244,.12)',
+      blockFill: 'rgba(91,130,255,.06)', blockStroke: 'rgba(140,165,255,.42)', blockGrid: 'rgba(232,238,244,.07)', text: 'rgba(232,238,244,.38)',
+      amberText: 'rgba(251,191,36,.45)', gateFill: 'rgba(251,191,36,.07)' },
+    label: { bg: 'rgba(13,23,40,.92)', border: 'rgba(91,130,255,.75)', pri: 'rgba(251,191,36,.9)', text: '#E8EEF6', sub: '#97A7BF' },
+    pin: '#5B82FF', danger: '#F87171',
+  },
+};
+const rootEl = document.documentElement;
+const darkMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+try { const saved = localStorage.getItem('tidegrid-theme'); if (saved === 'light' || saved === 'dark') rootEl.setAttribute('data-theme', saved); } catch (e) {}
+function currentTheme() { const a = rootEl.getAttribute('data-theme'); if (a === 'light' || a === 'dark') return a; return darkMQ && darkMQ.matches ? 'dark' : 'light'; }
+let curTheme = currentTheme();
+let TH = THEMES[curTheme];
+
+/* ====================================================================
+   World constants
+   ==================================================================== */
+const G = 0.35;                 // game minutes per simulated second
+const QUAY_LANE = -4, SPINE = -14, BERTH_Z = 7.2, TRAVEL_Y = 12;
+const LIFT_RATE = 1400;        // $ earned per container lift
+const WIND_BASE = 38, WIND_RATED = 46;
+const PRICE = { truck: 45000, block: 160000, gate: 90000, berth: 480000, crane: 260000, autopilot: 300000, storm: 220000, repair: 30000 };
+const OPEX = { crane: 6000, truck: 1500, block: 2500, berth: 4000, gate: 1500 }; // per game hour
+const LINES = [
+  { name: 'Meridian Lines',   hull: 0x1c3a5a, accent: 0xd9a441 },
+  { name: 'Kestrel Ocean',    hull: 0x5b2124, accent: 0xe8eef4 },
+  { name: 'Halvard Maritime', hull: 0x22343f, accent: 0x3ee6a8 },
+  { name: 'Sable Coast',      hull: 0x26262e, accent: 0xff7a45 },
+  { name: 'Orrin Freight',    hull: 0x14434b, accent: 0x7fc8ff },
+];
+const SHIP_NAMES = ['Calder Reach','Halcyon Drift','Northmark','Saltvane','Brisa Mumbai','Ostra Bay','Tessaline','Corvid Star','Lumen Tide','Varga Point','Peregrine Sea','Isola Grey','Marrow Sound','Quillon','Asteria Bight','Kelpie Run','Solent Ash','Ardent Fathom','Morrow Gate','Cinder Cove','Ilse Marron','Faro Vento','Gannet Rise','Severn Lark'];
+const BOX_COLORS = [0xb8432f, 0x2f6f9f, 0xd29a3a, 0x3f8a6b, 0x7d848f, 0xd5dde6, 0x5b4a8a, 0x9c5a2c, 0x2b5f73, 0xa83a3a];
+const BERTHS = [
+  { id: 'A', x: -62, open: true,  ship: null, cranes: [] },
+  { id: 'B', x: 0,   open: true,  ship: null, cranes: [] },
+  { id: 'C', x: 62,  open: false, ship: null, cranes: [] },
+];
+const COL_ID = { '-72': 'A', '-36': 'B', '0': 'C', '36': 'D', '72': 'E' };
+const BLOCK_ORDER = [[-36, -26], [0, -26], [36, -26], [0, -44], [-72, -26], [72, -26], [-36, -44], [36, -44], [-72, -44], [72, -44]];
+const BLK = { cols: 8, rows: 6, tiers: 4, cap: 192 };
+const ANCH = [[-110, 104], [-52, 114], [6, 106], [62, 116], [118, 104], [-82, 158], [-22, 164], [36, 160], [96, 166], [150, 150]];
+
+/* ====================================================================
+   Game state
+   ==================================================================== */
+const S = {
+  credits: 900000, rep: 58, minutes: 7 * 60 + 20, speed: 1,
+  liftTimes: [], gateTimes: [], spark: [], sparkAcc: 0,
+  liftsToday: 0, revToday: 0, dayStamp: 1,
+  waits: [], gateLanes: 2, gateAcc: 0, autopilot: false, stormRated: false,
+  wind: 11, windTarget: 11, windTimer: 0,
+  storm: null, customs: null, flash: 0,
+  nextContract: 150, nextStorm: rand(420, 640), nextCustoms: rand(700, 1000), nextFault: rand(260, 420),
+  contract: null, selected: null, autoBerth: true,
+  ships: [], trucks: [], ext: [], tweens: [], blocks: [], cranes: [],
+  shipSeq: 0, truckSeq: 0, craneSeq: 0, usedNames: new Set(),
+  flags: {},
+  calls: [], callSeq: 0, window: 2, hold: 60, pickups: 0, gateTurn: false,
+  rehandles: 0, rehandlesToday: 0, rehandleTimes: [], gateInTimes: [], dwell: { imp: [], exp: [] }, shortShipped: 0, started: false,
+};
+const REHANDLE_COST = 300;
+
+/* ====================================================================
+   Renderer / scene
+   ==================================================================== */
+const canvas = $('#scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const fogColor = new THREE.Color(0x0b2236);
+scene.fog = new THREE.FogExp2(fogColor, 0.0024);
+scene.background = fogColor;
+const camera = new THREE.PerspectiveCamera(42, 1, 0.5, 3200);
+
+const hemi = new THREE.HemisphereLight(0x9cc6ff, 0x0b1a26, 0.6);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -160, right: 160, top: 160, bottom: -160, near: 10, far: 600 });
+sun.shadow.bias = -0.0006;
+scene.add(sun, sun.target);
+
+/* ---- sky dome ---- */
+const skyU = {
+  uTop: { value: new THREE.Color(0x030a14) }, uHorizon: { value: fogColor.clone() },
+  uGlow: { value: new THREE.Color(0xff8a4a) }, uSunDir: { value: V3(0, 1, 0) }, uGlowAmt: { value: 0 },
+};
+const sky = new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 16), new THREE.ShaderMaterial({
+  uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
+  vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `uniform vec3 uTop,uHorizon,uGlow,uSunDir; uniform float uGlowAmt; varying vec3 vDir;
+    void main(){ float h = clamp(vDir.y,0.0,1.0); vec3 c = mix(uHorizon,uTop,pow(h,0.5));
+      float s = pow(max(dot(normalize(vDir),normalize(uSunDir)),0.0),6.0);
+      c += uGlow * s * uGlowAmt * (1.0-h);
+      gl_FragColor = vec4(c,1.0); }`
+}));
+sky.renderOrder = -1;
+scene.add(sky);
+
+/* ---- stars ---- */
+const starGeo = new THREE.BufferGeometry();
+{ const p = []; for (let i = 0; i < 900; i++) { const th = rand(0, TAU), ph = rand(0.08, 1.45); p.push(Math.cos(th) * Math.cos(ph) * 1400, Math.sin(ph) * 1400, Math.sin(th) * Math.cos(ph) * 1400); }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); }
+const starMat = new THREE.PointsMaterial({ color: 0xcfe6ff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.8, fog: false, depthWrite: false });
+const stars = new THREE.Points(starGeo, starMat);
+scene.add(stars);
+
+/* ---- water: "tidal grid" shader ---- */
+const waterU = {
+  uTime: { value: 0 }, uAmp: { value: 1 }, uLight: { value: 1 },
+  uDeep: { value: new THREE.Color(0x03172a) }, uShallow: { value: new THREE.Color(0x0e3c5c) },
+  uGrid: { value: new THREE.Color(0x00bfff) }, uGridAmt: { value: 0.3 }, uFoam: { value: new THREE.Color(0xffffff) }, uFog: { value: fogColor }, uFogD: { value: 0.0024 },
+  uSun: { value: V3(0.4, 0.8, 0.3) },
+};
+const water = new THREE.Mesh(new THREE.PlaneGeometry(2600, 2600, 220, 220), new THREE.ShaderMaterial({
+  uniforms: waterU, extensions: { derivatives: true },
+  vertexShader: `uniform float uTime; uniform float uAmp; varying vec3 vW; varying float vH;
+    void main(){ vec4 wp = modelMatrix * vec4(position,1.0);
+      float h = sin(wp.x*0.045 + uTime*0.9)*0.32 + sin(wp.z*0.06 - uTime*1.15)*0.24 + sin((wp.x+wp.z)*0.12 + uTime*1.8)*0.1;
+      h *= uAmp * smoothstep(0.0, 14.0, wp.z + 4.0); wp.y += h; vH = h; vW = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp; }`,
+  fragmentShader: `uniform vec3 uDeep,uShallow,uGrid,uFog,uSun,uFoam; uniform float uFogD,uTime,uLight,uGridAmt;
+    varying vec3 vW; varying float vH;
+    void main(){
+      float d = length(cameraPosition - vW);
+      vec3 n = normalize(cross(dFdx(vW), dFdy(vW))); if (n.y < 0.0) n = -n;
+      vec3 v = normalize(cameraPosition - vW);
+      float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+      vec3 col = mix(uDeep, uShallow, clamp(vH*0.9 + 0.45, 0.0, 1.0) * 0.55 + fres * 0.35) * uLight;
+      vec3 hdir = normalize(normalize(uSun) + v);
+      col += vec3(1.0,0.92,0.8) * pow(max(dot(n,hdir),0.0), 90.0) * 0.6 * uLight;
+      vec2 gp = vW.xz / 12.0;
+      vec2 g = abs(fract(gp - 0.5) - 0.5) / fwidth(gp);
+      float line = 1.0 - min(min(g.x, g.y), 1.0);
+      float pulse = 0.5 + 0.5 * sin(uTime*0.7 - length(vW.xz - vec2(0.0,-20.0))*0.035);
+      col = mix(col, uGrid, clamp(line * uGridAmt * (0.45 + 0.55*pulse) * exp(-d*0.0035), 0.0, 1.0));
+      float foam = smoothstep(5.0, 0.0, vW.z) * step(abs(vW.x), 120.0);
+      col = mix(col, uFoam, clamp(foam * (0.22 + 0.12*sin(vW.x*0.9 + uTime*3.0)), 0.0, 1.0));
+      float f = 1.0 - exp(-pow(uFogD * d, 2.0));
+      gl_FragColor = vec4(mix(col, uFog, f), 1.0);
+    }`
+}));
+water.rotation.x = -Math.PI / 2;
+scene.add(water);
+
+/* ====================================================================
+   Materials
+   ==================================================================== */
+const std = (color, rough = 0.6, metal = 0.2, extra = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: metal }, extra));
+const M = {
+  container: std(0xffffff, 0.62, 0.25),
+  crane: std(0x2b87bd, 0.5, 0.4), craneDark: std(0x173247, 0.7, 0.3), house: std(0xdfe7ee, 0.6, 0.1),
+  warn: std(0xffb547, 0.5, 0.2), rtg: std(0xd8a038, 0.5, 0.35), concrete: std(0x18293a, 0.95, 0.05),
+  quayFace: std(0x223445, 0.95, 0.05), fender: std(0x0a0e13, 0.9, 0), deck: std(0x2a333d, 0.8, 0.2),
+  hinter: std(0x0b1622, 1, 0), shed: std(0x1d2c3b, 0.9, 0.1), tree: std(0x0d2420, 1, 0),
+  window: std(0x101f2b, 0.5, 0.1, { emissive: new THREE.Color(0xffd28a), emissiveIntensity: 0.2 }),
+  lampHead: std(0x2a2418, 0.6, 0.3, { emissive: new THREE.Color(0xffb547), emissiveIntensity: 1 }),
+  pole: std(0x3a4a58, 0.6, 0.5), truckCab: std(0xe3a33a, 0.5, 0.3), extCab: std(0xcfd6de, 0.5, 0.3),
+  chassis: std(0x1b232c, 0.8, 0.4), tire: std(0x0b0d10, 0.9, 0), leaf: std(0x5cc46e, 0.9, 0), trunk: std(0x8a6a4a, 0.9, 0),
+  red: new THREE.MeshBasicMaterial({ color: 0xff3b30 }), flood: new THREE.MeshBasicMaterial({ color: 0xfff1d0 }),
+  gateOn: new THREE.MeshBasicMaterial({ color: 0x3ee6a8 }), gateOff: new THREE.MeshBasicMaterial({ color: 0x31404e }),
+  lighthouse: new THREE.MeshBasicMaterial({ color: 0xfff3c4, transparent: true, opacity: 1 }),
+};
+const boxMatCache = {};
+const boxMat = hex => boxMatCache[hex] || (boxMatCache[hex] = std(hex, 0.62, 0.25));
+const hullMatCache = {};
+const hullMat = hex => hullMatCache[hex] || (hullMatCache[hex] = std(hex, 0.55, 0.35));
+const boxGeo = new THREE.BoxGeometry(2.4, 1.0, 1.0);
+const unit = new THREE.BoxGeometry(1, 1, 1);
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+
+function mesh(geo, mat, x, y, z, shadow = true) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+  if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+  return m;
+}
+function box(w, h, d, mat, x, y, z, shadow = true) { const m = mesh(unit, mat, x, y, z, shadow); m.scale.set(w, h, d); return m; }
+function beam(a, b, t, mat) {
+  const m = new THREE.Mesh(unit, mat); m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.scale.set(t, t, a.distanceTo(b)); m.lookAt(b); m.castShadow = true; return m;
+}
+
+/* ====================================================================
+   Terrain: terminal slab, quay, hinterland, breakwater
+   ==================================================================== */
+const groundCanvas = document.createElement('canvas');
+groundCanvas.width = 2400; groundCanvas.height = 1100;
+const groundTex = new THREE.CanvasTexture(groundCanvas);
+groundTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+
+function drawGround() {
+  const g = groundCanvas.getContext('2d'), W = 2400, H = 1100, C = TH.ground;
+  const P = (x, z) => [(x + 120) * 10, (z + 110) * 10];
+  g.setLineDash([]);
+  g.fillStyle = C.base; g.fillRect(0, 0, W, H);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 7000; i++) { g.fillStyle = `rgba(${C.speck},${rnd() * C.speckA})`; g.fillRect(rnd() * W, rnd() * H, 2 + rnd() * 5, 2 + rnd() * 5); }
+  const ya = P(0, -12)[1]; g.fillStyle = C.apron; g.fillRect(0, ya, W, H - ya);
+  g.fillStyle = C.coping; g.fillRect(0, H - 7, W, 7);
+  g.fillStyle = C.copingDark; g.fillRect(0, H - 14, W, 7);
+  g.strokeStyle = C.rail; g.lineWidth = 4;
+  [-0.8, -7.2].forEach(z => { const y = P(0, z)[1]; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); });
+  const dashed = (x1, z1, x2, z2, col, w, dash) => {
+    const [a, b] = P(x1, z1), [c, d] = P(x2, z2); g.strokeStyle = col; g.lineWidth = w; g.setLineDash(dash || []);
+    g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); g.setLineDash([]);
+  };
+  dashed(-120, QUAY_LANE + 1.5, 120, QUAY_LANE + 1.5, C.line, 3, [30, 22]);
+  dashed(-120, QUAY_LANE - 1.5, 120, QUAY_LANE - 1.5, C.line, 3, [30, 22]);
+  dashed(-120, SPINE + 1.8, 120, SPINE + 1.8, C.lineStrong, 3);
+  dashed(-120, SPINE - 1.8, 120, SPINE - 1.8, C.lineStrong, 3);
+  dashed(-120, SPINE, 120, SPINE, C.amber, 3, [40, 30]);
+  [-90, -54, -18, 18, 54, 90, 104].forEach(x => dashed(x, SPINE - 1.8, x, -98, C.aisle, 2, [20, 20]));
+  dashed(-120, -96 + 1.8, 120, -96 + 1.8, C.line, 3);
+  dashed(-120, -96 - 1.8, 120, -96 - 1.8, C.line, 3);
+  g.font = '700 44px Inter, system-ui, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  BLOCK_ORDER.forEach(([bx, bz]) => {
+    const [x0, y0] = P(bx - 11, bz - 3.6), [x1, y1] = P(bx + 11, bz + 3.6);
+    const blk = S.blocks.find(q => q.x === bx && q.z === bz), ex = !!(blk && blk.open && blk.role === 'export');
+    g.fillStyle = ex ? C.gateFill : C.blockFill; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    g.strokeStyle = ex ? C.amber : C.blockStroke; g.lineWidth = 3; g.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    g.strokeStyle = C.blockGrid; g.lineWidth = 2;
+    for (let c = 1; c < BLK.cols; c++) { const xx = P(bx - 10.4 + c * 2.6, 0)[0]; g.beginPath(); g.moveTo(xx, y0); g.lineTo(xx, y1); g.stroke(); }
+    dashed(bx - 11, bz + 5.3, bx + 11, bz + 5.3, C.amber, 2, [14, 12]);
+    const id = COL_ID[String(bx)] + (bz === -26 ? '1' : '2');
+    g.fillStyle = ex ? C.amberText : C.text; const [tx, ty] = P(bx - 10.6, bz - 4.2);
+    g.fillText(blk && blk.open ? id + (ex ? ' · EXPORT' : ' · IMPORT') : id, tx, ty);
+  });
+  g.font = '800 66px Inter, system-ui, sans-serif'; g.textAlign = 'center';
+  BERTHS.forEach(b => { const [x, y] = P(b.x, -9.6); g.fillStyle = C.text; g.fillText('BERTH ' + b.id, x, y); });
+  g.font = '700 32px Inter, system-ui, sans-serif';
+  { const [x, y] = P(104, -42); g.fillStyle = C.amberText; g.save(); g.translate(x, y); g.rotate(-Math.PI / 2); g.fillText('TRACTOR DEPOT', 0, 14); g.restore(); }
+  { const [x0, y0] = P(-14, -110), [x1, y1] = P(14, -98); g.fillStyle = C.gateFill; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    g.fillStyle = C.text; g.font = '800 42px Inter, system-ui, sans-serif'; g.fillText('GATE 2', P(0, 0)[0], P(0, -100.5)[1]); }
+  groundTex.needsUpdate = true;
+}
+drawGround();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { drawGround(); S.ships.forEach(drawShipLabel); });
+
+{ // terminal slab
+  const top = new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.95, metalness: 0.02 });
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(240, 10, 110), [M.concrete, M.concrete, top, M.concrete, M.quayFace, M.concrete]);
+  slab.position.set(0, -5, -55); slab.receiveShadow = true; scene.add(slab);
+  const hinter = new THREE.Mesh(new THREE.BoxGeometry(1400, 10, 900), M.hinter);
+  hinter.position.set(0, -5.05, -560); hinter.receiveShadow = true; scene.add(hinter);
+  // fenders & bollards
+  for (let x = -116; x <= 116; x += 7.5) {
+    scene.add(box(1.4, 3.2, 0.7, M.fender, x, -1.6, 0.35, false));
+    scene.add(mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.7, 8), M.craneDark, x + 3.7, 0.35, -0.5));
+  }
+  // warehouses + a scatter of hinterland sheds
+  const sheds = [[-80, -128, 40, 9, 16], [-25, -132, 50, 11, 20], [40, -126, 30, 8, 14], [95, -134, 44, 10, 18], [-150, -170, 60, 12, 24], [150, -180, 50, 9, 20], [-40, -200, 80, 14, 26], [70, -230, 60, 10, 22]];
+  sheds.forEach(([x, z, w, h, d]) => {
+    scene.add(box(w, h, d, M.shed, x, h / 2, z));
+    for (let i = 0; i < Math.floor(w / 6); i++) scene.add(box(1.6, 0.6, 0.1, M.window, x - w / 2 + 3 + i * 6, h * 0.55, z + d / 2 + 0.06, false));
+  });
+  // reefer stacks at the back (decor), gate canopy built later
+  // breakwater + lighthouse
+  scene.add(box(200, 4, 7, M.quayFace, 326, -1, 196));
+  for (let i = 0; i < 40; i++) scene.add(mesh(new THREE.DodecahedronGeometry(rand(1.2, 2.6)), M.concrete, rand(228, 424), rand(-1, 0.6), 196 + pick([-4.5, 4.5]) + rand(-1, 1), false));
+  scene.add(mesh(new THREE.CylinderGeometry(1.4, 2.2, 16, 12), M.house, 232, 8, 196));
+  scene.add(mesh(new THREE.CylinderGeometry(1.6, 1.6, 1.6, 12), M.red, 232, 4, 196, false));
+}
+const lighthouseLamp = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), M.lighthouse);
+lighthouseLamp.position.set(232, 17, 196); scene.add(lighthouseLamp);
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+})();
+const lhGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffe3a0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+lhGlow.scale.set(18, 18, 1); lhGlow.position.copy(lighthouseLamp.position); scene.add(lhGlow);
+
+/* ---- trees (landscape buffer around the terminal) ---- */
+{
+  const crown = new THREE.IcosahedronGeometry(2.4, 1), trunkG = new THREE.CylinderGeometry(0.3, 0.42, 2.4, 6);
+  const spots = [];
+  for (let x = -112; x <= 112; x += 13) if (Math.abs(x) > 20) spots.push([x + rand(-2, 2), -113 + rand(-1.5, 1.5)]);
+  for (let z = -100; z <= -22; z += 13) { spots.push([-117 + rand(-1, 1), z]); }
+  for (let i = 0; i < 26; i++) spots.push([rand(-200, 200), rand(-150, -260)]);
+  spots.forEach(([x, z]) => {
+    const s = rand(0.85, 1.3);
+    const t = mesh(trunkG, M.trunk, x, 1.2 * s, z); t.scale.setScalar(s); scene.add(t);
+    const c = mesh(crown, M.leaf, x, (2.4 + 2.2) * s, z); c.scale.setScalar(s); scene.add(c);
+  });
+}
+/* ---- distant ridge + city lights ---- */
+for (let i = 0; i < 9; i++) {
+  const r = rand(80, 180), h = rand(40, 110);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), M.hinter);
+  cone.position.set(-700 + i * 175 + rand(-40, 40), h / 2 - 6, -980 + rand(-60, 60)); scene.add(cone);
+}
+const cityGeo = new THREE.BufferGeometry();
+{ const p = []; for (let i = 0; i < 700; i++) p.push(rand(-700, 700), rand(0.5, 8), rand(-860, -300)); cityGeo.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); }
+const cityMat = new THREE.PointsMaterial({ color: 0xffc77a, size: 2.4, sizeAttenuation: false, transparent: true, opacity: 0.7, depthWrite: false });
+scene.add(new THREE.Points(cityGeo, cityMat));
+
+/* ---- lamp poles + light pools ---- */
+const pools = [];
+const poolMat = new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffb547, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
+[[-90, SPINE], [-54, SPINE], [-18, SPINE], [18, SPINE], [54, SPINE], [90, SPINE], [-90, -35], [-54, -35], [-18, -35], [18, -35], [54, -35], [90, -35], [-54, -60], [0, -60], [54, -60], [-110, -6], [110, -6]].forEach(([x, z]) => {
+  scene.add(mesh(new THREE.CylinderGeometry(0.22, 0.32, 24, 6), M.pole, x, 12, z));
+  scene.add(box(2.6, 0.5, 2.6, M.lampHead, x, 24.2, z, false));
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(34, 34), poolMat); p.rotation.x = -Math.PI / 2; p.position.set(x, 0.06, z); p.renderOrder = 2; scene.add(p); pools.push(p);
+});
+
+/* ---- gate canopy ---- */
+const gateBooths = [];
+{
+  scene.add(box(34, 0.8, 9, M.house, 0, 7.5, -101));
+  [-16, 16].forEach(x => scene.add(box(0.8, 7.5, 0.8, M.pole, x, 3.75, -101)));
+  for (let i = 0; i < 4; i++) {
+    const x = -9 + i * 6;
+    scene.add(box(1.4, 2.4, 2.2, M.craneDark, x - 2.6, 1.2, -101));
+    const lamp = box(4.4, 0.25, 0.3, M.gateOff, x, 7.0, -96.6, false); scene.add(lamp); gateBooths.push(lamp);
+  }
+}
+const gateLaneX = i => -9 + (i % 4) * 6;
+
+/* ---- rain ---- */
+const rainGeo = new THREE.BufferGeometry();
+const RAIN_N = 2600;
+const rainPos = new Float32Array(RAIN_N * 3);
+for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3] = rand(-160, 160); rainPos[i * 3 + 1] = rand(0, 90); rainPos[i * 3 + 2] = rand(-160, 160); }
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.PointsMaterial({ color: 0xa8d4f0, size: 0.55, transparent: true, opacity: 0, depthWrite: false });
+const rain = new THREE.Points(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
+
+/* ====================================================================
+   Yard blocks + RTGs
+   ==================================================================== */
+const yardMesh = new THREE.InstancedMesh(boxGeo, M.container, BLOCK_ORDER.length * BLK.cap);
+yardMesh.castShadow = true; yardMesh.receiveShadow = true; yardMesh.frustumCulled = false;
+yardMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), tmpV = V3(0, 0, 0);
+for (let i = 0; i < BLOCK_ORDER.length * BLK.cap; i++) { yardMesh.setMatrixAt(i, ZERO); yardMesh.setColorAt(i, tmpC.setHex(pick(BOX_COLORS))); }
+scene.add(yardMesh);
+
+function slotPos(b, s) {
+  const tier = Math.floor(s / 48), w = s % 48, col = w % BLK.cols, row = Math.floor(w / BLK.cols);
+  return V3(b.x + (col - 3.5) * 2.6, 0.5 + tier * 1.02, b.z + (row - 2.5) * 1.12);
+}
+function setYardSlot(b, s, on, color) {
+  const idx = b.base + s;
+  if (on) { yardMesh.setMatrixAt(idx, tmpM.makeTranslation(...slotPos(b, s).toArray())); if (color != null) { yardMesh.setColorAt(idx, tmpC.setHex(color)); yardMesh.instanceColor.needsUpdate = true; } }
+  else yardMesh.setMatrixAt(idx, ZERO);
+  yardMesh.instanceMatrix.needsUpdate = true;
+}
+const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+const lockedEdgeMat = new THREE.LineBasicMaterial({ color: 0x00bfff, transparent: true, opacity: 0.22 });
+BLOCK_ORDER.forEach(([x, z], i) => {
+  const b = { i, id: COL_ID[String(x)] + (z === -26 ? '1' : '2'), x, z, lane: z + 5.3, aisle: x + 18, base: i * BLK.cap, open: false, role: 'import', count: 0, imp: 0, impT: [], exp: {}, expT: {}, expRes: {}, reserved: 0, outbound: 0, landing: 0, order: [], rtg: null };
+  for (let t = 0; t < BLK.tiers; t++) b.order.push(...shuffle(Array.from({ length: 48 }, (_, k) => t * 48 + k)));
+  const hit = new THREE.Mesh(unit, hitMat); hit.scale.set(22, 5, 8); hit.position.set(x, 2.5, z); hit.userData.pick = { type: 'block', ref: b }; scene.add(hit);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(21.6, 4.2, 7.2)), lockedEdgeMat);
+  edges.position.set(x, 2.1, z); scene.add(edges); b.edges = edges;
+  S.blocks.push(b);
+});
+
+function makeRTG(b) {
+  const g = new THREE.Group();
+  [-1.6, 1.6].forEach(sx => [-4.6, 6.4].forEach(sz => g.add(box(0.55, 6.6, 0.55, M.rtg, sx, 3.3, sz))));
+  [-1.6, 1.6].forEach(sx => g.add(box(0.6, 0.8, 11.6, M.rtg, sx, 6.9, 0.9)));
+  [-4.6, 6.4].forEach(sz => g.add(box(3.8, 0.6, 0.6, M.rtg, 0, 6.6, sz)));
+  [-4.6, 6.4].forEach(sz => g.add(box(3.8, 0.7, 1.0, M.craneDark, 0, 0.4, sz)));
+  const trolley = box(2.6, 0.7, 1.6, M.craneDark, 0, 7.5, 0); g.add(trolley);
+  g.add(box(1.0, 1.0, 1.2, M.house, 1.2, 5.6, 6.4));
+  g.position.set(b.x - 9, 0, b.z);
+  g.traverse(o => { if (o.isMesh) o.userData.pick = { type: 'block', ref: b }; });
+  scene.add(g);
+  b.rtg = { group: g, trolley, tx: b.x - 9, tz: 0 };
+}
+function openBlock(b, fill = 0, role = 'import') {
+  b.open = true; b.role = role; b.edges.visible = false; makeRTG(b);
+  for (let k = 0; k < fill; k++) { setYardSlot(b, b.order[k], true, pick(BOX_COLORS)); b.impT.push(S.minutes - rand(30, 420)); }
+  b.count = fill; b.imp = fill; b.impT.sort((x, y) => x - y);
+  if (S.started) drawGround();
+}
+
+/* ====================================================================
+   STS cranes
+   ==================================================================== */
+function buildCraneMesh() {
+  const g = new THREE.Group();
+  [-4.2, 4.2].forEach(sx => [-7.2, -0.8].forEach(sz => {
+    g.add(box(0.85, 19, 0.85, M.crane, sx, 9.5, sz));
+    g.add(box(2.4, 1.1, 1.4, M.craneDark, sx, 0.55, sz));
+  }));
+  [-7.2, -0.8].forEach(sz => g.add(box(9.3, 1.0, 1.0, M.crane, 0, 18.6, sz)));
+  [-4.2, 4.2].forEach(sx => g.add(box(0.6, 0.6, 6.4, M.crane, sx, 11, -4)));
+  [-1.3, 1.3].forEach(sx => g.add(box(0.7, 1.3, 34, M.crane, sx, 20.6, 2)));
+  g.add(box(3.3, 0.25, 34, M.craneDark, 0, 21.35, 2));
+  [-1, 1].forEach(s => {
+    const ap = V3(s * 1.3, 31, -4);
+    g.add(beam(V3(s * 4.2, 19, -7.2), ap, 0.7, M.crane));
+    g.add(beam(V3(s * 4.2, 19, -0.8), ap, 0.7, M.crane));
+    g.add(beam(ap, V3(s * 1.3, 21.3, 18.6), 0.22, M.craneDark));
+    g.add(beam(ap, V3(s * 1.3, 21.3, -14.6), 0.22, M.craneDark));
+  });
+  g.add(box(3.4, 0.9, 0.9, M.crane, 0, 31, -4));
+  g.add(box(4.4, 2.8, 4.2, M.house, 0, 23.1, -11.6));
+  g.add(box(3.6, 1.5, 0.7, M.warn, 0, 20.6, 19.1));
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), M.red); beacon.position.set(0, 31.8, -4); g.add(beacon);
+  const floods = [];
+  [6, 13].forEach(z => { const f = box(1.8, 0.2, 0.6, M.flood, 0, 19.85, z, false); g.add(f); floods.push(f); });
+  const trolley = new THREE.Group();
+  trolley.add(box(3.2, 1.1, 2.6, M.craneDark, 0, 0, 0));
+  trolley.add(box(1.4, 1.2, 1.4, M.house, 0, -1.15, 1.0));
+  trolley.add(box(1.2, 0.45, 0.05, M.window, 0, -1.0, 1.72, false));
+  trolley.position.set(0, 19.7, -9); g.add(trolley);
+  const spreader = new THREE.Group();
+  spreader.add(box(2.8, 0.34, 1.15, M.warn, 0, 0, 0));
+  spreader.position.set(0, TRAVEL_Y, -9); g.add(spreader);
+  const cables = [-0.9, 0.9].map(x => { const c = box(0.07, 1, 0.07, M.craneDark, x, 0, 0, false); g.add(c); return c; });
+  return { g, trolley, spreader, cables, beacon, floods };
+}
+function addCrane(berth, animate = true) {
+  const parts = buildCraneMesh();
+  const c = { id: ++S.craneSeq, berth, ...parts, x: berth.x, home: berth.x, tz: -9, sy: TRAVEL_Y, phase: 'idle', t: 0, slot: null, carry: null, carryColor: 0, truck: null, lifts: 0, fault: false, faultUntil: 0, scaleIn: animate ? 0 : 1, waitingTruck: false };
+  parts.g.traverse(o => { if (o.isMesh) o.userData.pick = { type: 'crane', ref: c }; });
+  berth.cranes.push(c); S.cranes.push(c);
+  layoutCranes(berth);
+  c.x = c.home; parts.g.position.set(c.x, 0, 0);
+  scene.add(parts.g);
+  return c;
+}
+function layoutCranes(berth) {
+  const offs = { 1: [0], 2: [-9, 9], 3: [-15, 0, 15] }[berth.cranes.length] || [0];
+  berth.cranes.sort((a, b) => a.home - b.home || a.id - b.id);
+  berth.cranes.forEach((c, i) => { c.home = berth.x + offs[i]; c.idx = i; });
+}
+function craneName(c) { return 'STS-' + String(c.id).padStart(2, '0'); }
+
+/* ====================================================================
+   Ships
+   ==================================================================== */
+let hullGeo;
+function getHullGeo() {
+  if (hullGeo) return hullGeo;
+  const s = new THREE.Shape();
+  s.moveTo(-24, -5.6); s.lineTo(14, -5.6); s.quadraticCurveTo(22, -5.2, 24.6, 0); s.quadraticCurveTo(22, 5.2, 14, 5.6); s.lineTo(-24, 5.6); s.lineTo(-24, -5.6);
+  hullGeo = new THREE.ExtrudeGeometry(s, { depth: 5.4, bevelEnabled: false, curveSegments: 10 });
+  hullGeo.rotateX(-Math.PI / 2); hullGeo.translate(0, -3.6, 0);
+  return hullGeo;
+}
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function drawShipLabel(ship) {
+  const g = ship.label.c.getContext('2d'), L = TH.label;
+  g.clearRect(0, 0, 512, 128);
+  g.save(); g.shadowColor = 'rgba(15,23,42,.25)'; g.shadowBlur = 10; g.shadowOffsetY = 3;
+  g.fillStyle = L.bg; roundRect(g, 8, 12, 496, 102, 20); g.fill(); g.restore();
+  g.strokeStyle = ship.priority ? L.pri : L.border; g.lineWidth = 3; roundRect(g, 8, 12, 496, 102, 20); g.stroke();
+  g.fillStyle = hexCss(ship.line.accent); g.beginPath(); g.arc(44, 63, 13, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(15,23,42,.25)'; g.lineWidth = 2; g.stroke();
+  g.font = '700 35px Inter, system-ui, sans-serif'; g.fillStyle = L.text; g.textBaseline = 'alphabetic';
+  g.fillText((ship.priority ? '★ ' : '') + 'MV ' + ship.name, 72, 56);
+  g.font = '500 25px Inter, system-ui, sans-serif'; g.fillStyle = L.sub;
+  g.fillText(ship.call ? `${ship.lifts - ship.lifted} off · ${ship.call.need - ship.call.loaded} on · ${ship.draft.toFixed(1)} m` : `${ship.lifts - ship.lifted} lifts left`, 72, 94);
+  ship.label.tex.needsUpdate = true;
+}
+function uniqueName() {
+  const free = SHIP_NAMES.filter(n => !S.usedNames.has(n) && !S.calls.some(c => c.name === n));
+  const n = free.length ? pick(free) : pick(SHIP_NAMES) + ' II';
+  S.usedNames.add(n); if (S.usedNames.size > 16) S.usedNames.delete(S.usedNames.values().next().value);
+  return n;
+}
+function spawnShip(opts = {}) {
+  const call = opts.call || makeCall(S.minutes);
+  const line = call.line, lifts = call.lifts;
+  const ship = {
+    id: ++S.shipSeq, name: call.name, line, lifts, lifted: 0, untaken: lifts,
+    draft: opts.draft || +(10.2 + lifts * 0.04 + rand(-0.4, 0.4)).toFixed(1),
+    priority: !!call.priority, contract: call.contract || null, call, phase: 'discharge', waitExp: 0, sailing: false,
+    state: 'inbound', berth: null, anchorIdx: -1, path: [], heading: 0, speed: 0,
+    arrivedAt: S.minutes, berthedAt: null, wait: 0, bob: rand(0, TAU),
+  };
+  call.ship = ship; call.state = 'arrived'; if (call.contract) call.contract.start = S.minutes;
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(getHullGeo(), [M.deck, hullMat(line.hull)]); hull.castShadow = true; hull.receiveShadow = true; g.add(hull);
+  g.add(box(5, 6.4, 10, M.house, -19.5, 5, 0));
+  g.add(box(6.2, 1.1, 12.6, M.house, -18.8, 8.4, 0));
+  g.add(box(6.3, 0.55, 12.7, M.window, -18.8, 7.6, 0, false));
+  g.add(box(2.8, 3.4, 2.4, hullMat(line.accent), -22.6, 9.6, 0));
+  g.add(box(0.3, 7, 0.3, M.pole, 21.5, 5, 0));
+  const mast = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), M.flood); mast.position.set(21.5, 8.6, 0); g.add(mast);
+  // cargo slots
+  const order = [];
+  for (let t = 0; t < 3; t++) { const tier = []; for (let r = 0; r < 8; r++) for (let b = 0; b < 12; b++) tier.push({ b, r, t }); order.push(...shuffle(tier)); }
+  const n = Math.min(lifts, order.length);
+  const cargo = new THREE.InstancedMesh(boxGeo, M.container, n);
+  cargo.castShadow = true; cargo.receiveShadow = true; cargo.frustumCulled = false;
+  ship.slots = [];
+  const bias = [line.accent, line.accent, ...BOX_COLORS];
+  for (let i = 0; i < n; i++) {
+    const { b, r, t } = order[i];
+    const pos = V3(-11 + b * 2.6, 1.8 + 0.5 + t * 1.02, (r - 3.5) * 1.12);
+    const color = pick(bias);
+    cargo.setMatrixAt(i, tmpM.makeTranslation(pos.x, pos.y, pos.z)); cargo.setColorAt(i, tmpC.setHex(color));
+    ship.slots.push({ i, b, t, pos, color, taken: false });
+  }
+  g.add(cargo); ship.cargo = cargo;
+  if (lifts > n) ship.extra = lifts - n; // hold cargo under hatch covers
+  ship.untaken = n; ship.lifts = n + (ship.extra || 0); ship.holdLeft = ship.extra || 0;
+  // label
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearFilter;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.scale.set(30, 7.5, 1); sp.position.set(-12, 16, 0); sp.renderOrder = 10; g.add(sp);
+  ship.label = { c, tex, sp };
+  drawShipLabel(ship);
+  g.traverse(o => { if (o.isMesh || o.isInstancedMesh) o.userData.pick = { type: 'ship', ref: ship }; });
+  const sx = opts.at ? opts.at[0] : rand(-280, 150), sz = opts.at ? opts.at[1] : 430;
+  g.position.set(sx, 0, sz);
+  ship.heading = Math.PI / 2;
+  g.rotation.y = ship.heading;
+  ship.group = g; scene.add(g);
+  S.ships.push(ship);
+  return ship;
+}
+function shipWaiting() {
+  return S.ships.filter(s => (s.state === 'inbound' || s.state === 'anchored') && !s.berth)
+    .sort((a, b) => (b.priority - a.priority) || (a.arrivedAt - b.arrivedAt));
+}
+const tideOk = s => s.draft < 14.5 || S.tide >= 1.0;
+function assignBerth(ship, berth, manual) {
+  if (!berth.open || berth.ship || ship.berth) return false;
+  if (!tideOk(ship)) { if (manual) toast(`MV ${ship.name} draws ${ship.draft.toFixed(1)} m. Wait for tide above 1.0 m.`, 'warn'); return false; }
+  ship.berth = berth; berth.ship = ship; ship.state = 'berthing'; ship.clearedAt = S.minutes;
+  ship.wait = S.minutes - ship.arrivedAt;
+  const p = ship.group.position;
+  ship.path = [V3(berth.x - 44, 0, 42), V3(berth.x - 6, 0, BERTH_Z + 0.4), V3(berth.x, 0, BERTH_Z)];
+  if (p.z < 60 && Math.abs(p.x - berth.x) < 40) ship.path.shift();
+  log(`MV ${ship.name} cleared to Berth ${berth.id}${manual ? ' (manual)' : ''}`, '');
+  return true;
+}
+function updateShips(dt) {
+  // anchorage slots
+  const waiting = shipWaiting();
+  waiting.forEach((s, i) => {
+    if (s.anchorIdx !== i) {
+      s.anchorIdx = i; const a = ANCH[Math.min(i, ANCH.length - 1)];
+      s.path = [V3(a[0] + (i >= ANCH.length ? (i - ANCH.length + 1) * 30 : 0), 0, a[1])];
+      if (s.state === 'anchored') s.state = 'inbound';
+    }
+  });
+  for (let k = S.ships.length - 1; k >= 0; k--) {
+    const s = S.ships[k], g = s.group, p = g.position;
+    g.position.y = S.waterY + Math.sin(S.t * 0.8 + s.bob) * (s.state === 'working' ? 0.04 : 0.15);
+    g.rotation.z = Math.sin(S.t * 0.6 + s.bob) * (s.state === 'working' ? 0.003 : 0.012);
+    if (s.path.length) {
+      const tgt = s.path[0], dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
+      const last = s.path.length === 1;
+      const vmax = s.state === 'departing' ? 13 : 12;
+      const v = last ? Math.min(vmax, 0.7 * d + 1.4) : vmax;
+      const step = v * dt;
+      if (d <= step || d < 0.05) { p.x = tgt.x; p.z = tgt.z; s.path.shift(); }
+      else { p.x += dx / d * step; p.z += dz / d * step; }
+      if (d > 2.5) s.heading += angDiff(s.heading, Math.atan2(-dz, dx)) * Math.min(1, dt * 1.6);
+      if (!s.path.length) {
+        if (s.state === 'inbound') { s.state = 'anchored'; if (s.anchoredAt == null) s.anchoredAt = S.minutes; }
+        else if (s.state === 'berthing') { s.state = 'working'; s.berthedAt = S.minutes; onBerthed(s); }
+        else if (s.state === 'departing') { removeShip(s, k); continue; }
+      }
+    } else if (s.state === 'anchored') {
+      s.heading += angDiff(s.heading, Math.PI * 0.55 + Math.sin(S.t * 0.05 + s.bob) * 0.4) * dt * 0.2;
+    }
+    if (s.state === 'berthing' && s.path.length === 1) s.heading += angDiff(s.heading, 0) * Math.min(1, dt * 2.2);
+    if (s.state === 'working') s.heading += angDiff(s.heading, 0) * Math.min(1, dt * 3);
+    g.rotation.y = s.heading;
+    // discharge -> load -> sail
+    if (s.state === 'working') {
+      const call = s.call;
+      if (s.phase === 'discharge' && s.untaken === 0 && s.holdLeft === 0 && !s.berth.cranes.some(c => c.slot || (c.carry && c.mode !== 'load'))) {
+        s.phase = 'load'; s.dischargedAt = S.minutes; drawShipLabel(s);
+        if (call.need > 0) log(`MV ${s.name} discharge complete · loading ${call.need} export boxes`, '');
+      }
+      if (s.phase === 'load') {
+        const left = call.need - call.loaded - call.fetching;
+        if (!s.sailing && left > 0 && yardAvail(call) === 0) {
+          s.waitExp += dt * G;
+          if (s.waitExp > S.hold) { s.sailing = true; log(`MV ${s.name} hold expired · sailing without ${left} export boxes`, 'warn'); }
+        }
+        if (call.fetching === 0 && (call.loaded >= call.need || s.sailing)) depart(s);
+      }
+    }
+  }
+}
+function onBerthed(s) {
+  const w = Math.round(s.wait);
+  let d = w < 30 ? 2 : w < 90 ? 0.5 : -Math.min(6, 3 + Math.floor((w - 90) / 60));
+  adjustRep(d);
+  S.waits.push(w); if (S.waits.length > 12) S.waits.shift();
+  log(`MV ${s.name} all fast at Berth ${s.berth.id} · waited ${w} min`, w < 90 ? 'good' : 'warn');
+}
+function depart(s) {
+  const b = s.berth; s.state = 'departing'; s.sailedAt = S.minutes; b.ship = null; s.berth = null;
+  s.path = [V3(b.x + 46, 0, 34), V3(b.x + 110, 0, 140), V3(b.x + 160, 0, 460)];
+  const call = s.call; call.state = 'done'; call.sailedAt = S.minutes;
+  const short = Math.max(0, call.need - call.loaded);
+  const earned = (s.lifts + call.loaded) * LIFT_RATE * (s.priority ? 1.2 : 1);
+  let msg = `MV ${esc(s.name)} sailed · ${s.lifts} off, ${call.loaded} on · <b>+${money(earned)}</b>`;
+  if (short) {
+    adjustRep(-Math.ceil(short / 6)); S.shortShipped += short;
+    const moved = rollTo(call);
+    log(`${short} export boxes short-shipped on MV ${s.name}${moved ? ` · ${moved} rolled to the next ${s.line.name} call` : ''}`, 'crit');
+    msg += ` · ${short} short-shipped`;
+  }
+  if (s.contract) {
+    const took = S.minutes - s.contract.start;
+    if (took <= s.contract.window) { S.credits += s.contract.bonus; adjustRep(4); msg += ` · contract bonus <b>+${money(s.contract.bonus)}</b>`; log(`${s.line.name} contract met in ${Math.round(took)} min`, 'good'); }
+    else { adjustRep(-6); log(`${s.line.name} contract missed (${Math.round(took)} of ${s.contract.window} min)`, 'crit'); }
+  }
+  toast(msg, 'good');
+  log(`MV ${s.name} departed Berth ${b.id}`, 'good');
+  if (S.selected && S.selected.ref === s) {/* keep inspector until gone */}
+}
+function removeShip(s, k) {
+  scene.remove(s.group); s.cargo.dispose(); s.label.tex.dispose(); s.label.sp.material.dispose();
+  S.ships.splice(k, 1);
+  if (S.selected && S.selected.ref === s) select(null);
+  if (UI.trackId === s.id) UI.trackId = null;
+}
+
+/* ====================================================================
+   Trucks (yard tractors + gate trucks)
+   ==================================================================== */
+function buildTruck(cabMat) {
+  const g = new THREE.Group();
+  g.add(box(3.6, 0.32, 1.2, M.chassis, -0.4, 0.85, 0));
+  g.add(box(1.4, 1.35, 1.2, cabMat, 1.65, 1.25, 0));
+  g.add(box(0.05, 0.5, 1.0, M.window, 2.36, 1.55, 0, false));
+  [-1.7, -0.4, 1.6].forEach(x => g.add(box(0.7, 0.7, 1.3, M.tire, x, 0.35, 0, false)));
+  return g;
+}
+function depotPos(id) { return { x: 104 - Math.floor((id - 1) / 9) * 3.2, z: -18 - ((id - 1) % 9) * 2.6, aisle: 104 - Math.floor((id - 1) / 9) * 3.2 }; }
+function addTruck() {
+  const id = ++S.truckSeq; const d = depotPos(id);
+  const g = buildTruck(M.truckCab); g.position.set(d.x, 0, d.z); g.rotation.y = Math.PI / 2;
+  const t = { id, group: g, x: d.x, z: d.z, heading: Math.PI / 2, path: [], state: 'parked', crane: null, block: null, load: null, aisle: d.aisle, ext: false };
+  g.traverse(o => { if (o.isMesh) o.userData.pick = { type: 'truck', ref: t }; });
+  scene.add(g); S.trucks.push(t);
+  return t;
+}
+function route(t, dest) {
+  const pts = [];
+  if (t.z < -16.5) { if (Math.abs(t.x - t.aisle) > 0.3) pts.push(V3(t.aisle, 0, t.z)); pts.push(V3(t.aisle, 0, SPINE)); }
+  else if (t.z > -12) pts.push(V3(t.x, 0, SPINE));
+  if (dest.z < -16.5) { pts.push(V3(dest.aisle, 0, SPINE), V3(dest.aisle, 0, dest.z)); if (Math.abs(dest.x - dest.aisle) > 0.01) pts.push(V3(dest.x, 0, dest.z)); t.aisle = dest.aisle; }
+  else if (dest.z > -12) pts.push(V3(dest.x, 0, SPINE), V3(dest.x, 0, dest.z));
+  else pts.push(V3(dest.x, 0, dest.z));
+  return pts;
+}
+const truckSpeed = () => 15 * (S.autopilot ? 1.2 : 1);
+function moveAlong(t, dt, speed) {
+  if (!t.path.length) return true;
+  let remaining = speed * dt;
+  while (remaining > 0 && t.path.length) {
+    const tgt = t.path[0], dx = tgt.x - t.x, dz = tgt.z - t.z, d = Math.hypot(dx, dz);
+    if (d < 0.001) { t.path.shift(); continue; }
+    const want = Math.atan2(-dz, dx);
+    t.heading += angDiff(t.heading, want) * Math.min(1, dt * 10);
+    if (d <= remaining) { t.x = tgt.x; t.z = tgt.z; remaining -= d; t.path.shift(); }
+    else { t.x += dx / d * remaining; t.z += dz / d * remaining; remaining = 0; }
+  }
+  t.group.position.set(t.x, 0, t.z); t.group.rotation.y = t.heading;
+  return t.path.length === 0;
+}
+function sendToDepot(t) { t.crane = null; t.state = 'toDepot'; t.path = route(t, depotPos(t.id)); }
+function pickBlockFor() {
+  let best = null, bestScore = 1e9;
+  S.blocks.forEach(b => { if (!b.open || b.role !== 'import') return; const used = b.count + b.reserved; if (used >= BLK.cap) return; const sc = used / BLK.cap; if (sc < bestScore) { bestScore = sc; best = b; } });
+  return best;
+}
+function yardHasRoom() { return S.blocks.some(b => b.open && b.role === 'import' && b.count + b.reserved < BLK.cap); }
+function updateTrucks(dt) {
+  const sp = truckSpeed();
+  S.trucks.forEach(t => {
+    if (t.state === 'waiting' || t.state === 'waitLoaded') {
+      const c = t.crane;
+      if (!c) { sendToDepot(t); return; }
+      t.x = approach(t.x, c.truck === t ? c.x : c.x - 5.5, 3 * dt); t.heading += angDiff(t.heading, 0) * Math.min(1, dt * 6);
+      t.group.position.set(t.x, 0, t.z); t.group.rotation.y = t.heading; return;
+    }
+    if (t.state === 'unloading' || t.state === 'parked' || t.state === 'yardLoading') return;
+    if ((t.state === 'toCrane' || t.state === 'toCraneLoaded') && t.crane) { const last = t.path[t.path.length - 1]; if (last && last.z > -12) last.x = t.crane.truck === t ? t.crane.x : t.crane.x - 5.5; }
+    const arrived = moveAlong(t, dt, sp);
+    if (!arrived) return;
+    if (t.state === 'toCrane') t.state = 'waiting';
+    else if (t.state === 'toCraneLoaded') t.state = 'waitLoaded';
+    else if (t.state === 'toBlockPick') startYardPick(t);
+    else if (t.state === 'toYard') startUnload(t);
+    else if (t.state === 'toDepot') { t.state = 'parked'; t.heading = Math.PI / 2; t.group.rotation.y = t.heading; }
+  });
+  // ext gate trucks
+  for (let i = S.ext.length - 1; i >= 0; i--) {
+    const t = S.ext[i];
+    if (t.state === 'loading') continue;
+    if (moveAlong(t, dt, 13)) {
+      if (t.state === 'inbound') { if (t.kind === 'exp') startGateDrop(t); else startGatePick(t); }
+      else if (t.state === 'outbound') { scene.remove(t.group); S.ext.splice(i, 1); if (t.kind !== 'exp') S.gateTimes.push(S.minutes); }
+    }
+  }
+}
+function freeTruckNear(x, z) {
+  let best = null, bd = 1e9;
+  S.trucks.forEach(t => { if (t.state !== 'parked' && t.state !== 'toDepot') return; const d = Math.abs(t.x - x) + Math.abs(t.z - z) * (S.autopilot ? 1 : 0.4); if (d < bd) { bd = d; best = t; } });
+  return best;
+}
+function dispatch() {
+  S.cranes.forEach(c => {
+    const ship = c.berth.ship, t = c.truck;
+    const disNeeded = !!(((c.carry || c.slot) && c.mode !== 'load') || (ship && ship.state === 'working' && ship.phase === 'discharge' && (ship.untaken > 0 || ship.holdLeft > 0)));
+    if (t && (t.state === 'toCrane' || t.state === 'waiting')) { if (!disNeeded) { sendToDepot(t); c.truck = null; } return; }
+    if (!t && c.nextTruck) { c.truck = c.nextTruck; c.nextTruck = null; }
+    if (c.truck && c.mode !== 'load') return;
+    if (disNeeded) {
+      const best = freeTruckNear(c.x, QUAY_LANE);
+      if (best) { c.truck = best; best.crane = c; best.state = 'toCrane'; best.path = route(best, { x: c.x, z: QUAY_LANE }); }
+      return;
+    }
+    if (!ship || ship.state !== 'working' || ship.phase !== 'load' || ship.sailing || c.fault) return;
+    if (c.nextTruck) return;
+    const call = ship.call; if (call.need - call.loaded - call.fetching <= 0) return;
+    const b = exportSource(call, c.x); if (!b) return;
+    const tr = freeTruckNear(b.x, b.lane); if (!tr) return;
+    if (c.truck) c.nextTruck = tr; else c.truck = tr;
+    tr.crane = c; tr.block = b; tr.key = call.id;
+    b.expRes[call.id] = (b.expRes[call.id] || 0) + 1; call.fetching++;
+    tr.state = 'toBlockPick'; tr.path = route(tr, { x: b.x + rand(-7, 7), z: b.lane, aisle: b.aisle });
+  });
+  S.flags.waitingCranes = S.cranes.filter(c => c.waitingTruck).length;
+}
+
+/* ---- vessel calls, export receiving, yard dwell ---- */
+function makeCall(eta, o = {}) {
+  const line = o.line || pick(LINES), lifts = o.lifts || Math.round(rand(44, 70 + S.rep * 0.7));
+  const exp = o.exports != null ? o.exports : Math.round(lifts * rand(0.4, 0.7));
+  if (o.name) S.usedNames.add(o.name);
+  const c = { id: ++S.callSeq, line, name: o.name || uniqueName(), lifts, fresh: exp, need: exp, eta, opened: null, sent: 0, inbound: 0, gated: 0, loaded: 0, fetching: 0, rolled: 0, state: 'scheduled', ship: null, priority: !!o.priority, contract: o.contract || null };
+  S.calls.push(c); adoptRolled(c);
+  return c;
+}
+function scheduleCalls() {
+  let last = S.calls.reduce((m, c) => Math.max(m, c.eta), S.minutes);
+  while (last < S.minutes + 270) { last += lerp(180, 85, S.rep / 100) * rand(0.75, 1.3); makeCall(last); }
+}
+function callInYard(c) { let n = 0; S.blocks.forEach(b => { n += b.exp[c.id] || 0; }); return n; }
+function yardAvail(c) { let n = 0; S.blocks.forEach(b => { n += (b.exp[c.id] || 0) - (b.expRes[c.id] || 0); }); return n; }
+function moveKeys(from, to) {
+  let n = 0;
+  S.blocks.forEach(b => {
+    const k = b.exp[from.id] || 0; if (!k || (b.expRes[from.id] || 0) > 0) return;
+    b.exp[to.id] = (b.exp[to.id] || 0) + k;
+    b.expT[to.id] = (b.expT[to.id] || []).concat(b.expT[from.id] || []).sort((x, y) => x - y);
+    delete b.exp[from.id]; delete b.expT[from.id]; n += k;
+  });
+  to.need += n; to.gated += n; to.rolled += n;
+  return n;
+}
+function rollTo(old) {
+  const next = S.calls.filter(c => c.state === 'scheduled' && c.line === old.line && c !== old).sort((a, b) => a.eta - b.eta)[0];
+  return next ? moveKeys(old, next) : 0;
+}
+function adoptRolled(c) { S.calls.filter(o => o.state === 'done' && o.line === c.line && o !== c).forEach(o => moveKeys(o, c)); }
+function deliveryTarget(c) {
+  if (c.opened == null) return 0;
+  const span = Math.max(30, c.eta - c.opened);
+  const f = clamp((S.minutes - c.opened) / span, 0, 1) * 0.88 + clamp((S.minutes - c.eta) / 90, 0, 1) * 0.12;
+  return Math.min(c.fresh, Math.floor(c.fresh * f + 1e-6));
+}
+function nextExportCall() {
+  let best = null, bd = 0;
+  S.calls.forEach(c => { if (c.state === 'done' || c.opened == null) return; const d = deliveryTarget(c) - c.sent; if (d > bd) { bd = d; best = c; } });
+  return best;
+}
+function importsInYard() { let n = 0; S.blocks.forEach(b => { n += b.imp; }); return n; }
+function exportsInYard() { let n = 0; S.blocks.forEach(b => { for (const k in b.exp) n += b.exp[k]; }); return n; }
+function importAvail() { return S.pickups >= 1 && S.blocks.some(b => b.open && b.imp - b.outbound > 0); }
+function rehandle(b, same) {
+  const mix = b.count > 1 ? 1 - same / b.count : 0;
+  if (Math.random() < mix * 0.5) { S.rehandles++; S.rehandlesToday++; S.rehandleTimes.push(S.minutes); S.credits -= REHANDLE_COST; return 1.3; }
+  return 0;
+}
+function dwellOut(kind, t0) { if (t0 == null) return; const a = S.dwell[kind]; a.push(S.minutes - t0); if (a.length > 40) a.shift(); }
+function pickExportBlock(call) {
+  let best = null, bs = 1e9;
+  S.blocks.forEach(b => {
+    if (!b.open || b.role !== 'export') return;
+    const used = b.count + b.reserved; if (used >= BLK.cap) return;
+    const sc = used / BLK.cap - ((b.exp[call.id] || 0) > 0 ? 0.6 : 0);
+    if (sc < bs) { bs = sc; best = b; }
+  });
+  return best;
+}
+function exportSource(call, x) {
+  let best = null, bd = 1e9;
+  S.blocks.forEach(b => { if ((b.exp[call.id] || 0) - (b.expRes[call.id] || 0) <= 0) return; const d = Math.abs(b.x - x) + Math.abs(b.z) * 0.5; if (d < bd) { bd = d; best = b; } });
+  return best;
+}
+function fillExports(b, call, n, a0, a1) {
+  const ts = [];
+  for (let k = 0; k < n; k++) { setYardSlot(b, b.order[b.count], true, Math.random() < 0.7 ? call.line.accent : pick(BOX_COLORS)); b.count++; ts.push(S.minutes - rand(a0, a1)); }
+  b.exp[call.id] = (b.exp[call.id] || 0) + n;
+  b.expT[call.id] = (b.expT[call.id] || []).concat(ts).sort((x, y) => x - y);
+  call.gated += n; call.sent += n;
+}
+function spawnExportTruck(call) {
+  const b = pickExportBlock(call);
+  if (!b) { S.flags.expBlocked = true; return false; }
+  b.reserved++; call.sent++; call.inbound++;
+  const lane = randi(0, S.gateLanes - 1), gx = gateLaneX(lane);
+  const g = buildTruck(M.extCab), color = Math.random() < 0.7 ? call.line.accent : pick(BOX_COLORS);
+  const m = new THREE.Mesh(boxGeo, boxMat(color)); m.castShadow = true; m.position.set(-0.4, 1.5, 0); g.add(m);
+  const t = { ext: true, kind: 'exp', group: g, x: gx, z: -170, heading: Math.PI / 2, block: b, lane, call, load: m, loadColor: color, state: 'inbound',
+    path: [V3(gx, 0, -96), V3(b.aisle, 0, -96), V3(b.aisle, 0, b.lane), V3(b.x + rand(-6, 6), 0, b.lane)] };
+  g.position.set(t.x, 0, t.z); scene.add(g); S.ext.push(t);
+  return true;
+}
+function startGateDrop(t) {
+  const b = t.block, call = t.call; t.state = 'loading';
+  const box3 = t.load, wp = V3(0, 0, 0); box3.getWorldPosition(wp); scene.attach(box3);
+  const target = slotPos(b, b.order[Math.min(BLK.cap - 1, b.count + b.landing)]); b.landing++;
+  S.tweens.push({ mesh: box3, a: wp, b: target, t: 0, dur: 1.4, lift: 6.2, rtg: b.rtg, done: () => {
+    b.landing--; b.reserved--;
+    const slot = b.order[b.count]; b.count++;
+    setYardSlot(b, slot, true, t.loadColor); scene.remove(box3);
+    b.exp[call.id] = (b.exp[call.id] || 0) + 1; (b.expT[call.id] = b.expT[call.id] || []).push(S.minutes);
+    call.inbound--; call.gated++; S.gateInTimes.push(S.minutes);
+    if (call.state === 'done') rollTo(call);
+    t.load = null; t.state = 'outbound'; t.path = gateOut(t);
+  } });
+}
+function startYardPick(t) {
+  const b = t.block, key = t.key, c = t.crane, call = c && c.berth.ship ? c.berth.ship.call : null;
+  t.state = 'yardLoading';
+  if (!(b.exp[key] > 0) || b.count <= 0 || !c) {
+    b.expRes[key] = Math.max(0, (b.expRes[key] || 1) - 1); if (call) call.fetching--;
+    if (c) { if (c.truck === t) { c.truck = c.nextTruck || null; c.nextTruck = null; } else if (c.nextTruck === t) c.nextTruck = null; }
+    t.block = null; sendToDepot(t); return;
+  }
+  const extra = rehandle(b, b.exp[key]);
+  const slot = b.order[b.count - 1], color = colorOfSlot(b, slot);
+  b.count--; b.exp[key]--; b.expRes[key]--; dwellOut('exp', (b.expT[key] || []).shift());
+  if (!b.exp[key]) { delete b.exp[key]; delete b.expT[key]; }
+  setYardSlot(b, slot, false);
+  const m = new THREE.Mesh(boxGeo, boxMat(color)); m.castShadow = true;
+  const from = slotPos(b, slot); m.position.copy(from); scene.add(m);
+  const bed = V3(-0.4, 1.5, 0); t.group.localToWorld(bed);
+  S.tweens.push({ mesh: m, a: from, b: bed, t: 0, dur: 1.4 + extra, lift: 6.2, rtg: b.rtg, done: () => {
+    t.group.attach(m); m.position.set(-0.4, 1.5, 0); m.rotation.set(0, 0, 0);
+    t.load = m; t.loadColor = color; t.block = null;
+    t.state = 'toCraneLoaded'; t.path = route(t, { x: t.crane.x, z: QUAY_LANE });
+  } });
+}
+function loadSlot(c) {
+  const ship = c.berth.ship, n = c.berth.cranes.length;
+  const sec = b => Math.min(n - 1, Math.floor(b * n / 12));
+  let best = null, bs = 1e9;
+  ship.slots.forEach(s => { if (!s.taken || s.loaded || s.pend) return; const sc = s.t * 100 + (sec(s.b) === c.idx ? 0 : 50) + Math.abs(s.pos.x + c.berth.x - c.x) * 0.1; if (sc < bs) { bs = sc; best = s; } });
+  return best || { hold: true, pos: V3(-11 + (c.idx + 0.5) * 12 / n * 2.6, 1.0, rand(-3, 3)) };
+}
+
+/* ---- tweens: box moves between truck bed and yard slot via the RTG ---- */
+function startUnload(t) {
+  const b = t.block;
+  t.state = 'unloading';
+  const box3 = t.load; const wp = V3(0, 0, 0); box3.getWorldPosition(wp); scene.attach(box3);
+  // the actual slot index is resolved on landing (count may change meanwhile)
+  const target = slotPos(b, b.order[Math.min(BLK.cap - 1, b.count + b.landing)]);
+  b.landing++;
+  S.tweens.push({ mesh: box3, a: wp, b: target, t: 0, dur: 1.5, lift: 6.2, rtg: b.rtg, done: () => {
+    b.landing--; b.reserved--;
+    const slot = b.order[b.count]; b.count++; b.imp++; b.impT.push(S.minutes);
+    setYardSlot(b, slot, true, t.loadColor);
+    scene.remove(box3);
+    t.load = null; t.block = null; sendToDepot(t);
+  } });
+}
+function spawnGateTruck() {
+  let best = null, bc = 0;
+  S.blocks.forEach(b => { if (!b.open) return; const avail = b.imp - b.outbound; if (avail > bc) { bc = avail; best = b; } });
+  if (!best || bc <= 0) return false;
+  best.outbound++; S.pickups = Math.max(0, S.pickups - 1);
+  const lane = randi(0, S.gateLanes - 1), gx = gateLaneX(lane);
+  const g = buildTruck(M.extCab);
+  const t = { ext: true, group: g, x: gx, z: -170, heading: Math.PI / 2, block: best, lane, state: 'inbound', path: [V3(gx, 0, -96), V3(best.aisle, 0, -96), V3(best.aisle, 0, best.lane), V3(best.x + rand(-6, 6), 0, best.lane)] };
+  g.position.set(t.x, 0, t.z); scene.add(g); S.ext.push(t);
+  return true;
+}
+function startGatePick(t) {
+  const b = t.block; t.state = 'loading';
+  if (b.imp <= 0 || b.count <= 0) { b.outbound--; t.state = 'outbound'; t.path = gateOut(t); return; }
+  const extra = rehandle(b, b.imp);
+  const slot = b.order[b.count - 1]; b.count--; b.imp--; b.outbound--; dwellOut('imp', b.impT.shift());
+  const color = colorOfSlot(b, slot);
+  setYardSlot(b, slot, false);
+  const m = new THREE.Mesh(boxGeo, boxMat(color)); m.castShadow = true;
+  const from = slotPos(b, slot); m.position.copy(from); scene.add(m);
+  const bed = V3(-0.4, 1.5, 0); t.group.localToWorld(bed);
+  S.tweens.push({ mesh: m, a: from, b: bed, t: 0, dur: 1.4 + extra, lift: 6.2, rtg: b.rtg, done: () => {
+    t.group.attach(m); m.position.set(-0.4, 1.5, 0); m.rotation.set(0, 0, 0);
+    t.state = 'outbound'; t.path = gateOut(t);
+  } });
+}
+function gateOut(t) { const b = t.block, gx = gateLaneX(t.lane); return [V3(b.aisle, 0, b.lane), V3(b.aisle, 0, -96), V3(gx, 0, -96), V3(gx, 0, -175)]; }
+function colorOfSlot(b, slot) { const a = yardMesh.instanceColor.array, i = (b.base + slot) * 3; tmpC.setRGB(a[i], a[i + 1], a[i + 2]); return tmpC.getHex(); }
+function updateTweens(dt) {
+  for (let i = S.tweens.length - 1; i >= 0; i--) {
+    const w = S.tweens[i]; w.t += dt; const p = clamp(w.t / w.dur, 0, 1), m = w.mesh.position;
+    if (p < 0.3) { const q = smooth(0, 1, p / 0.3); m.set(w.a.x, lerp(w.a.y, w.lift, q), w.a.z); }
+    else if (p < 0.7) { const q = smooth(0, 1, (p - 0.3) / 0.4); m.set(lerp(w.a.x, w.b.x, q), w.lift, lerp(w.a.z, w.b.z, q)); }
+    else { const q = smooth(0, 1, (p - 0.7) / 0.3); m.set(w.b.x, lerp(w.lift, w.b.y, q), w.b.z); }
+    w.mesh.rotation.set(0, 0, 0);
+    if (w.rtg) { w.rtg.tx = m.x; w.rtg.tz = m.z - w.rtg.group.position.z; }
+    if (p >= 1) { S.tweens.splice(i, 1); w.done(); }
+  }
+  S.blocks.forEach(b => { if (!b.rtg) return; const r = b.rtg; r.group.position.x = approach(r.group.position.x, r.tx, 10 * dt); r.trolley.position.z = approach(r.trolley.position.z, clamp(r.tz, -4, 6), 8 * dt); });
+}
+
+/* ====================================================================
+   Crane cycle
+   ==================================================================== */
+function chooseSlot(c) {
+  const ship = c.berth.ship; if (!ship || ship.state !== 'working') return null;
+  const n = c.berth.cranes.length;
+  const ownSection = b => Math.min(n - 1, Math.floor(b * n / 12));
+  const canTake = sec => sec === c.idx || (c.berth.cranes[sec] && c.berth.cranes[sec].fault);
+  let best = null, bs = -1e9;
+  ship.slots.forEach(s => {
+    if (s.taken || !canTake(ownSection(s.b))) return;
+    const score = s.t * 100 - Math.abs(s.pos.x + c.berth.x - c.x);
+    if (score > bs) { bs = score; best = s; }
+  });
+  return best;
+}
+const HOIST = 14, TROLLEY = 16, GANTRY = 8;
+function updateCranes(dt) {
+  const windHold = S.wind > (S.stormRated ? WIND_RATED : WIND_BASE);
+  const mult = S.autopilot ? 1.12 : 1;
+  S.cranes.forEach(c => {
+    if (c.scaleIn < 1) { c.scaleIn = Math.min(1, c.scaleIn + dt * 1.2); const e = smooth(0, 1, c.scaleIn); c.g.scale.set(1, e, 1); }
+    if (c.fault && S.minutes >= c.faultUntil) { c.fault = false; log(`${craneName(c)} back in service`, 'good'); }
+    c.waitingTruck = false;
+    const halted = windHold || c.fault;
+    const ship = c.berth.ship;
+    if (!halted) {
+      const h = HOIST * mult * dt, tr = TROLLEY * mult * dt, ga = GANTRY * dt;
+      const sw = s => ship.group.localToWorld(s.pos.clone());
+      switch (c.phase) {
+        case 'idle': {
+          if (ship && ship.state === 'working' && ship.phase === 'load') {
+            c.mode = 'load';
+            const call = ship.call, t = c.truck;
+            const active = !!t || (!ship.sailing && call.need - call.loaded - call.fetching > 0);
+            c.x = approach(c.x, c.home, ga); c.sy = approach(c.sy, TRAVEL_Y, h);
+            c.tz = approach(c.tz, active ? QUAY_LANE : -9, tr);
+            if (!active) break;
+            if (t && t.state === 'waitLoaded' && Math.abs(t.x - c.x) < 0.25 && Math.abs(c.tz - QUAY_LANE) < 0.01) c.phase = 'llower';
+            else c.waitingTruck = t ? t.state !== 'waitLoaded' : yardAvail(call) > 0;
+            break;
+          }
+          c.mode = 'dis';
+          const s = chooseSlot(c);
+          if (s) { s.taken = true; ship.untaken--; c.slot = s; c.phase = 'travel'; }
+          else if (ship && ship.state === 'working' && ship.holdLeft > 0 && ship.untaken === 0 && c.idx === (ship.holdLeft % c.berth.cranes.length)) {
+            // hold cargo: lifted from under the hatch covers (deck already clear)
+            ship.holdLeft--; c.slot = { hold: true, pos: V3(-11 + (c.idx + 0.5) * 12 / c.berth.cranes.length * 2.6, 1.0, rand(-3, 3)), color: pick(BOX_COLORS) }; c.phase = 'travel';
+          } else {
+            c.x = approach(c.x, c.home, ga); c.tz = approach(c.tz, -9, tr); c.sy = approach(c.sy, TRAVEL_Y, h);
+          }
+          break;
+        }
+        case 'travel': {
+          const p = c.slot.hold ? ship.group.localToWorld(c.slot.pos.clone()) : sw(c.slot);
+          c.x = approach(c.x, p.x, ga); c.tz = approach(c.tz, p.z, tr); c.sy = approach(c.sy, TRAVEL_Y, h);
+          if (Math.abs(c.x - p.x) < 0.01 && Math.abs(c.tz - p.z) < 0.01 && Math.abs(c.sy - TRAVEL_Y) < 0.01) c.phase = 'lower';
+          break;
+        }
+        case 'lower': {
+          const p = c.slot.hold ? ship.group.localToWorld(c.slot.pos.clone()) : sw(c.slot);
+          const ty = p.y + 0.5 + 0.17; c.sy = approach(c.sy, ty, h * 0.8); c.tz = p.z;
+          if (Math.abs(c.sy - ty) < 0.01) { c.phase = 'grab'; c.t = 0; }
+          break;
+        }
+        case 'grab': {
+          c.t += dt * mult;
+          if (c.t > 0.3) {
+            const s = c.slot;
+            if (!s.hold) { ship.cargo.setMatrixAt(s.i, ZERO); ship.cargo.instanceMatrix.needsUpdate = true; }
+            const m = new THREE.Mesh(boxGeo, boxMat(s.color)); m.castShadow = true; m.position.set(0, -0.67, 0);
+            c.spreader.add(m); c.carry = m; c.carryColor = s.color; c.slot = null;
+            ship.lifted++; drawShipLabel(ship);
+            c.phase = 'hoist';
+          }
+          break;
+        }
+        case 'hoist': c.sy = approach(c.sy, TRAVEL_Y, h); if (Math.abs(c.sy - TRAVEL_Y) < 0.01) c.phase = 'traverse'; break;
+        case 'llower': { const ty = 2.17; c.sy = approach(c.sy, ty, h * 0.8); if (Math.abs(c.sy - ty) < 0.01) { c.phase = 'lgrab'; c.t = 0; } break; }
+        case 'lgrab': {
+          c.t += dt * mult;
+          if (c.t > 0.3) {
+            const t = c.truck;
+            if (!t || !t.load) { c.phase = 'idle'; break; }
+            c.spreader.attach(t.load); t.load.position.set(0, -0.67, 0); t.load.rotation.set(0, 0, 0);
+            c.carry = t.load; c.carryColor = t.loadColor; t.load = null; t.key = null; c.truck = c.nextTruck || null; c.nextTruck = null; sendToDepot(t);
+            c.slot = loadSlot(c); if (!c.slot.hold) c.slot.pend = true;
+            c.phase = 'lhoist';
+          }
+          break;
+        }
+        case 'lhoist': c.sy = approach(c.sy, TRAVEL_Y, h); if (Math.abs(c.sy - TRAVEL_Y) < 0.01) c.phase = 'ltravel'; break;
+        case 'ltravel': {
+          const p = sw(c.slot);
+          c.x = approach(c.x, p.x, ga); c.tz = approach(c.tz, p.z, tr);
+          if (Math.abs(c.x - p.x) < 0.01 && Math.abs(c.tz - p.z) < 0.01) c.phase = 'llower2';
+          break;
+        }
+        case 'llower2': {
+          const p = sw(c.slot), ty = p.y + 0.5 + 0.17; c.sy = approach(c.sy, ty, h * 0.8); c.tz = p.z;
+          if (Math.abs(c.sy - ty) < 0.01) { c.phase = 'lrelease'; c.t = 0; }
+          break;
+        }
+        case 'lrelease': {
+          c.t += dt * mult;
+          if (c.t > 0.22) {
+            const sl = c.slot;
+            if (!sl.hold) {
+              ship.cargo.setMatrixAt(sl.i, tmpM.makeTranslation(sl.pos.x, sl.pos.y, sl.pos.z)); ship.cargo.setColorAt(sl.i, tmpC.setHex(c.carryColor));
+              ship.cargo.instanceMatrix.needsUpdate = true; ship.cargo.instanceColor.needsUpdate = true; sl.loaded = true; sl.pend = false;
+            }
+            c.spreader.remove(c.carry); c.carry = null; c.slot = null;
+            ship.call.loaded++; ship.call.fetching--; c.lifts++; recordLift(ship); drawShipLabel(ship);
+            c.phase = 'hoist2';
+          }
+          break;
+        }
+        case 'hoist2': c.sy = approach(c.sy, TRAVEL_Y, h); if (Math.abs(c.sy - TRAVEL_Y) < 0.01) c.phase = 'idle'; break;
+        case 'traverse': c.tz = approach(c.tz, QUAY_LANE, tr); if (Math.abs(c.tz - QUAY_LANE) < 0.01) c.phase = 'await'; break;
+        case 'await': {
+          const t = c.truck;
+          if (t && t.state === 'waiting' && Math.abs(t.x - c.x) < 0.25) {
+            if (yardHasRoom()) { c.phase = 'set'; } else S.flags.yardBlocked = true;
+          } else c.waitingTruck = true;
+          break;
+        }
+        case 'set': {
+          const ty = 2.17; c.sy = approach(c.sy, ty, h * 0.8);
+          if (Math.abs(c.sy - ty) < 0.01) { c.phase = 'release'; c.t = 0; }
+          break;
+        }
+        case 'release': {
+          c.t += dt * mult;
+          if (c.t > 0.22) {
+            const t = c.truck, b = pickBlockFor();
+            if (!t || !b) { c.phase = 'await'; break; }
+            t.group.attach(c.carry); c.carry.position.set(-0.4, 1.5, 0); c.carry.rotation.set(0, 0, 0);
+            t.load = c.carry; t.loadColor = c.carryColor; c.carry = null;
+            b.reserved++; t.block = b; t.state = 'toYard'; t.crane = null; c.truck = null;
+            t.path = route(t, { x: b.x + rand(-7, 7), z: b.lane, aisle: b.aisle });
+            c.lifts++; recordLift(c.berth.ship);
+            c.phase = 'idle';
+          }
+          break;
+        }
+      }
+    }
+    // pose
+    c.g.position.x = c.x;
+    c.trolley.position.z = c.tz;
+    c.spreader.position.set(0, c.sy, c.tz);
+    const top = 19.7 - 0.55, len = Math.max(0.1, top - (c.sy + 0.17));
+    c.cables.forEach(cb => { cb.scale.y = len; cb.position.set(cb.position.x, c.sy + 0.17 + len / 2, c.tz); });
+    const blink = (Math.sin(S.t * 3 + c.id) > 0.6);
+    c.beacon.visible = c.fault ? (Math.sin(S.t * 10) > 0) : blink;
+    c.beacon.scale.setScalar(c.fault ? 1.8 : 1);
+  });
+  S.flags.windHold = windHold;
+}
+function recordLift(ship) {
+  const val = LIFT_RATE * (ship && ship.priority ? 1.2 : 1);
+  S.credits += val; S.revToday += val; S.liftsToday++;
+  S.liftTimes.push(S.minutes);
+}
+
+/* ====================================================================
+   Economy, events, environment
+   ==================================================================== */
+function adjustRep(d) { S.rep = clamp(S.rep + d, 0, 100); }
+function openBerths() { return BERTHS.filter(b => b.open); }
+function opexPerHour() {
+  return S.cranes.length * OPEX.crane + S.trucks.length * OPEX.truck + S.blocks.filter(b => b.open).length * OPEX.block + openBerths().length * OPEX.berth + S.gateLanes * OPEX.gate;
+}
+const tideAt = m => 1.6 + 1.35 * Math.sin(TAU * (m - 300) / 745);
+function updateEconomy(dtMin) {
+  S.credits -= opexPerHour() * dtMin / 60;
+  // vessel schedule: export receiving opens, ships arrive
+  scheduleCalls();
+  S.calls.forEach(c => {
+    if (c.state !== 'scheduled') return;
+    if (c.opened == null && S.minutes >= c.eta - S.window * 60) { c.opened = S.minutes; if (c.fresh > 0) log(`Export receiving open for MV ${c.name} · ${c.fresh} boxes due by ${clockStr(c.eta).hm}`, ''); }
+    if (S.minutes >= c.eta) {
+      if (shipWaiting().length < 8) { const s = spawnShip({ call: c }); log(`MV ${s.name} (${c.line.name}) entered port limits · ${c.lifts} off, ${c.need} on`, ''); }
+      else c.eta += 30;
+    }
+  });
+  if (S.calls.length > 14) S.calls = S.calls.filter(c => c.state !== 'done' || S.minutes - c.sailedAt < 240 || callInYard(c) > 0 || c.inbound > 0);
+  // consignee pickups build up in proportion to imports sitting in the yard (mean dwell ~4 h)
+  const impNow = importsInYard();
+  S.pickups = Math.min(impNow, S.pickups + impNow * 0.25 * dtMin / 60);
+  // gate: lanes shared between export deliveries and import pickups
+  S.gateAcc = Math.min(3, S.gateAcc + S.gateLanes * 40 * dtMin / 60);
+  for (let guard = 0; guard < 6 && S.gateAcc >= 1; guard++) {
+    const call = nextExportCall(), imp = !S.customs && importAvail();
+    let ok = false;
+    if (call && (S.gateTurn || !imp)) ok = spawnExportTruck(call);
+    if (!ok && imp) ok = spawnGateTruck();
+    if (!ok && call && !S.gateTurn) ok = spawnExportTruck(call);
+    S.gateTurn = !S.gateTurn;
+    if (!ok) break;
+    S.gateAcc -= 1;
+  }
+  // wind
+  S.windTimer -= dtMin;
+  if (S.windTimer <= 0) { S.windTimer = rand(40, 90); S.windTarget = S.storm ? rand(42, 54) : rand(6, 24); }
+  S.wind = approach(S.wind, S.windTarget, dtMin * (S.storm ? 0.6 : 0.25));
+  // events
+  S.nextStorm -= dtMin; S.nextCustoms -= dtMin; S.nextFault -= dtMin; S.nextContract -= dtMin;
+  if (!S.storm && S.nextStorm <= 0) { S.storm = { until: S.minutes + rand(70, 130) }; S.windTimer = 0; log('Squall line approaching · gusts above crane limits expected', 'warn'); toast('Storm warning · cranes will stop above the wind limit', 'warn'); }
+  if (S.storm && S.minutes >= S.storm.until) { S.storm = null; S.windTimer = 0; S.nextStorm = rand(600, 1000); log('Storm passed · wind easing', 'good'); }
+  if (!S.customs && S.nextCustoms <= 0) { S.customs = { until: S.minutes + rand(80, 130) }; log('Customs inspection hold · import pickups paused', 'warn'); }
+  if (S.customs && S.minutes >= S.customs.until) { S.customs = null; S.nextCustoms = rand(800, 1300); log('Customs hold lifted · import pickups resumed', 'good'); }
+  if (S.nextFault <= 0) {
+    S.nextFault = rand(380, 700);
+    const cands = S.cranes.filter(c => !c.fault && c.berth.ship);
+    if (cands.length) { const c = pick(cands); c.fault = true; c.faultUntil = S.minutes + 180; log(`${craneName(c)} spreader fault at Berth ${c.berth.id} · repair crew dispatched`, 'crit'); }
+  }
+  if (!S.contract && S.nextContract <= 0) { offerContract(); S.nextContract = rand(260, 420); }
+  if (S.contract && !S.contract.accepted && S.minutes > S.contract.expires) { log(`${S.contract.line.name} offer lapsed`, ''); S.contract = null; renderCards(); }
+  // auto berth
+  if (S.autoBerth) {
+    const free = openBerths().filter(b => !b.ship);
+    if (free.length) {
+      const cand = shipWaiting().filter(tideOk);
+      free.forEach(b => { const s = cand.shift(); if (s) assignBerth(s, b, false); });
+    }
+  }
+  // day rollover
+  const day = Math.floor(S.minutes / 1440) + 1;
+  if (day !== S.dayStamp) { S.dayStamp = day; log(`Day ${day} · yesterday ${S.liftsToday} lifts (${S.liftsToday * 2} TEU), ${money(S.revToday)} revenue`, 'good'); S.liftsToday = 0; S.revToday = 0; S.repDay = S.rep; S.rehandlesToday = 0; }
+  // sparkline sample every 10 game minutes
+  S.sparkAcc += dtMin;
+  if (S.sparkAcc >= 10) { S.sparkAcc = 0; S.spark.push(liftsPerHour()); if (S.spark.length > 36) S.spark.shift(); }
+}
+function liftsPerHour() { const cut = S.minutes - 60; while (S.liftTimes.length && S.liftTimes[0] < cut) S.liftTimes.shift(); return S.liftTimes.length; }
+function gateInPerHour() { const cut = S.minutes - 60; while (S.gateInTimes.length && S.gateInTimes[0] < cut) S.gateInTimes.shift(); return S.gateInTimes.length; }
+function rehandlesPerHour() { const cut = S.minutes - 60; while (S.rehandleTimes.length && S.rehandleTimes[0] < cut) S.rehandleTimes.shift(); return S.rehandleTimes.length; }
+function gatePerHour() { const cut = S.minutes - 60; while (S.gateTimes.length && S.gateTimes[0] < cut) S.gateTimes.shift(); return S.gateTimes.length; }
+function offerContract() {
+  const line = pick(LINES), lifts = randi(90, 140), exports = Math.round(lifts * 0.35), window = Math.round((lifts + exports) * 1.3 + 70);
+  S.contract = { line, lifts, exports, window, bonus: Math.round(lifts * LIFT_RATE * 0.9 / 1000) * 1000, name: uniqueName(), expires: S.minutes + 60, accepted: false };
+  log(`${line.name} requests a priority call for MV ${S.contract.name}`, 'warn');
+  renderCards();
+}
+const C1 = new THREE.Color(), C2 = new THREE.Color();
+const SKY = { dayTop: new THREE.Color(0x0e2f4f), dayHor: new THREE.Color(0x2a5878), nightTop: new THREE.Color(0x02070e), nightHor: new THREE.Color(0x0a1b2c), stormHor: new THREE.Color(0x1a2632), stormTop: new THREE.Color(0x0a1118) };
+function updateEnvironment(dt) {
+  S.tide = tideAt(S.minutes);
+  S.tideRising = tideAt(S.minutes + 5) > S.tide;
+  S.waterY = -1.95 + S.tide * 0.36;
+  water.position.y = S.waterY;
+  const hour = (S.minutes / 60) % 24, az = (hour - 6) / 12 * Math.PI;
+  S.stormK = approach(S.stormK || 0, S.storm ? 1 : 0, dt * 0.25);
+  const sk = S.stormK, night = TH.night;
+  sun.position.set(Math.cos(az) * 170, 210, -50 + Math.sin(az) * 90);
+  S.flash = Math.max(0, S.flash - dt * 3);
+  if (S.storm && Math.random() < dt * 0.15) S.flash = 1;
+  sun.intensity = TH.sun * (1 - 0.5 * sk);
+  hemi.intensity = TH.hemi * (1 - 0.3 * sk) + S.flash * 1.2;
+  skyU.uTop.value.setHex(TH.skyTop).lerp(C1.setHex(TH.stormTop), sk);
+  skyU.uHorizon.value.setHex(TH.skyHor).lerp(C2.setHex(TH.stormHor), sk);
+  fogColor.copy(skyU.uHorizon.value); scene.fog.color.copy(fogColor);
+  skyU.uGlowAmt.value = 0;
+  skyU.uSunDir.value.copy(sun.position).normalize();
+  scene.fog.density = lerp(TH.fogD, TH.fogD * 2.4, sk);
+  waterU.uFogD.value = scene.fog.density;
+  waterU.uAmp.value = lerp(1, 2.4, sk);
+  waterU.uLight.value = TH.waterLight * (1 - 0.25 * sk) + S.flash * 0.5;
+  waterU.uSun.value.copy(sun.position).normalize();
+  starMat.opacity = night * (1 - sk) * 0.85; stars.visible = night > 0;
+  poolMat.opacity = 0.34 * night;
+  M.lampHead.emissiveIntensity = 0.1 + night * 1.2;
+  M.window.emissiveIntensity = 0.04 + night * 1.1;
+  cityMat.opacity = night * 0.75;
+  M.flood.color.setHex(night ? 0xfff1d0 : 0xe3e9f0);
+  rainMat.opacity = sk * (night ? 0.6 : 0.5);
+  if (sk > 0.01) {
+    const a = rainGeo.attributes.position.array, cx = camTarget.x, cz = camTarget.z;
+    for (let i = 0; i < RAIN_N; i++) {
+      a[i * 3 + 1] -= dt * 70; a[i * 3] += dt * 8;
+      if (a[i * 3 + 1] < 0) { a[i * 3 + 1] = 90; a[i * 3] = cx + rand(-160, 160); a[i * 3 + 2] = cz + rand(-160, 160); }
+    }
+    rainGeo.attributes.position.needsUpdate = true;
+  }
+  const lh = (S.t % 4) < 0.35 ? 1 : 0.05;
+  lhGlow.material.opacity = lh * (0.25 + night * 0.75); M.lighthouse.opacity = 0.3 + lh * 0.7;
+  gateBooths.forEach((g, i) => g.material = (i < S.gateLanes && !S.customs) ? M.gateOn : M.gateOff);
+}
+
+/* ====================================================================
+   Camera controls (RTS style)
+   ==================================================================== */
+const camTarget = V3(-4, 0, 6);
+const cam = { yaw: 0.6, pitch: 0.62, dist: 235, tYaw: 0.6, tPitch: 0.62, tDist: 235, focus: null };
+if (window.innerWidth <= 900) { cam.dist = cam.tDist = 330; }
+function placeCamera(dt) {
+  if (cam.focus) { camTarget.x = lerp(camTarget.x, cam.focus.x, Math.min(1, dt * 3)); camTarget.z = lerp(camTarget.z, cam.focus.z, Math.min(1, dt * 3)); if (camTarget.distanceTo(cam.focus) < 0.5) cam.focus = null; }
+  const k = Math.min(1, dt * 8);
+  cam.yaw += (cam.tYaw - cam.yaw) * k; cam.pitch += (cam.tPitch - cam.pitch) * k; cam.dist += (cam.tDist - cam.dist) * k;
+  camera.position.set(camTarget.x + cam.dist * Math.cos(cam.pitch) * Math.sin(cam.yaw), camTarget.y + cam.dist * Math.sin(cam.pitch), camTarget.z + cam.dist * Math.cos(cam.pitch) * Math.cos(cam.yaw));
+  camera.lookAt(camTarget);
+  sky.position.copy(camera.position);
+  sun.target.position.set(camTarget.x, 0, camTarget.z - 10);
+  sun.position.add(sun.target.position);
+}
+function panBy(dx, dy) {
+  const s = cam.dist * 0.0016; cam.focus = null;
+  const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw), fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  camTarget.x = clamp(camTarget.x - rx * dx * s + fx * dy * s, -220, 220);
+  camTarget.z = clamp(camTarget.z - rz * dx * s + fz * dy * s, -140, 260);
+}
+const pointers = new Map(); let gesture = null, downInfo = null;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  downInfo = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false };
+  gesture = (e.button === 2 || e.shiftKey || e.altKey) ? 'rotate' : 'pan';
+  if (pointers.size === 2) gesture = 'pinch';
+  canvas.classList.add('dragging');
+});
+canvas.addEventListener('pointermove', e => {
+  const p = pointers.get(e.pointerId);
+  if (!p) { hoverPick(e); return; }
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  if (downInfo && Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 6) downInfo.moved = true;
+  if (gesture === 'pinch' && pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const before = Math.hypot(a.x - b.x, a.y - b.y), ang0 = Math.atan2(a.y - b.y, a.x - b.x);
+    p.x = e.clientX; p.y = e.clientY;
+    const [a2, b2] = [...pointers.values()];
+    const after = Math.hypot(a2.x - b2.x, a2.y - b2.y), ang1 = Math.atan2(a2.y - b2.y, a2.x - b2.x);
+    if (before > 0) cam.tDist = clamp(cam.tDist * before / Math.max(1, after), 45, 460);
+    cam.tYaw += angDiff(ang0, ang1);
+    return;
+  }
+  p.x = e.clientX; p.y = e.clientY;
+  if (gesture === 'rotate') { cam.tYaw -= dx * 0.005; cam.tPitch = clamp(cam.tPitch + dy * 0.004, 0.22, 1.35); }
+  else if (gesture === 'pan') panBy(dx, dy);
+});
+const endPointer = e => {
+  pointers.delete(e.pointerId);
+  if (pointers.size === 0) {
+    canvas.classList.remove('dragging');
+    if (downInfo && !downInfo.moved && performance.now() - downInfo.t < 450 && e.type === 'pointerup') clickPick(e);
+    downInfo = null; gesture = null;
+  } else gesture = 'pan';
+};
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.tDist = clamp(cam.tDist * (1 + Math.sign(e.deltaY) * Math.min(0.2, Math.abs(e.deltaY) * 0.0012)), 45, 460); }, { passive: false });
+const keys = new Set();
+window.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  keys.add(e.key.toLowerCase());
+  if (e.key === ' ') { e.preventDefault(); setSpeed(S.speed === 0 ? (S.lastSpeed || 1) : 0); }
+  if (e.key === '1') setSpeed(1); if (e.key === '2') setSpeed(2); if (e.key === '3') setSpeed(4);
+  if (e.key === 'Escape') select(null);
+});
+window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => keys.clear());
+function keyPan(dt) {
+  const v = 420 * dt; let dx = 0, dy = 0;
+  if (keys.has('a') || keys.has('arrowleft')) dx += v; if (keys.has('d') || keys.has('arrowright')) dx -= v;
+  if (keys.has('w') || keys.has('arrowup')) dy += v; if (keys.has('s') || keys.has('arrowdown')) dy -= v;
+  if (dx || dy) panBy(dx, dy);
+  if (keys.has('q')) cam.tYaw += dt * 1.2; if (keys.has('e')) cam.tYaw -= dt * 1.2;
+}
+
+/* ---- picking ---- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pickAt(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(scene.children, true);
+  for (const h of hits) { let o = h.object; while (o) { if (o.userData.pick) return o.userData.pick; o = o.parent; } }
+  return null;
+}
+let hoverT = 0;
+function hoverPick(e) { const now = performance.now(); if (now - hoverT < 70) return; hoverT = now; canvas.classList.toggle('hovering', !!pickAt(e)); }
+function clickPick(e) { const p = pickAt(e); select(p); }
+
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 64), new THREE.MeshBasicMaterial({ color: 0x00bfff, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+ring.rotation.x = -Math.PI / 2; ring.visible = false; ring.renderOrder = 3; scene.add(ring);
+function select(p) { S.selected = p; onSelect(p); }
+function selPos(p) {
+  if (!p) return null;
+  const r = p.ref;
+  if (p.type === 'ship') return { x: r.group.position.x, z: r.group.position.z, s: 30 };
+  if (p.type === 'crane') return { x: r.x, z: -3, s: 11 };
+  if (p.type === 'truck') return { x: r.x, z: r.z, s: 3.5 };
+  if (p.type === 'block') return { x: r.x, z: r.z + 1, s: 15 };
+  return null;
+}
+function focusOn(p) { const q = selPos(p); if (q) cam.focus = V3(q.x, 0, q.z); }
+
+/* ====================================================================
+   HUD
+   ==================================================================== */
+const hud = $('#hud'), topbar = $('#topbar'); let uiHold = false;
+[hud, topbar].forEach(el => el.addEventListener('pointerdown', () => { uiHold = true; }));
+window.addEventListener('pointerup', () => setTimeout(() => { uiHold = false; }, 60));
+const ico = (n, c = '') => `<svg class="ic ${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const pad2 = n => String(n).padStart(2, '0');
+const isMobile = () => window.innerWidth <= 900;
+function setHH() { rootEl.style.setProperty('--hh', topbar.offsetHeight + 'px'); }
+window.addEventListener('resize', setHH);
+if (window.ResizeObserver) new ResizeObserver(setHH).observe(topbar);
+
+/* ---- map pins (selection + faults) ---- */
+function pinTexture(color) {
+  const c = document.createElement('canvas'); c.width = 96; c.height = 128; const g = c.getContext('2d');
+  g.save(); g.shadowColor = 'rgba(15,23,42,.35)'; g.shadowBlur = 10; g.shadowOffsetY = 4;
+  g.beginPath(); g.arc(48, 44, 32, Math.PI * 0.8, Math.PI * 0.2); g.lineTo(48, 120); g.closePath();
+  g.fillStyle = color; g.fill(); g.restore();
+  g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,.95)'; g.stroke();
+  g.beginPath(); g.arc(48, 44, 12, 0, TAU); g.fillStyle = '#fff'; g.fill();
+  const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; return t;
+}
+const pinTex = { pri: null, crit: null }, pins = [];
+function drawPins() {
+  ['pri', 'crit'].forEach(k => { if (pinTex[k]) pinTex[k].dispose(); pinTex[k] = pinTexture(k === 'pri' ? TH.pin : TH.danger); });
+  pins.forEach(p => { p.material.map = pinTex[p.userData.kind]; p.material.needsUpdate = true; });
+}
+function getPin(i) {
+  if (!pins[i]) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: pinTex.pri, depthTest: false, transparent: true }));
+    sp.center.set(0.5, 0); sp.renderOrder = 12; sp.userData.kind = 'pri'; scene.add(sp); pins.push(sp);
+  }
+  return pins[i];
+}
+const pinHeight = p => p.type === 'ship' ? 17 : p.type === 'crane' ? 33 : p.type === 'truck' ? 4.5 : 7.5;
+function updatePins(now) {
+  const list = [], q = selPos(S.selected);
+  if (q) list.push({ x: q.x, y: pinHeight(S.selected), z: q.z, kind: 'pri' });
+  S.cranes.forEach(c => { if (c.fault) list.push({ x: c.x, y: 33, z: -4, kind: 'crit' }); });
+  const s = clamp(cam.dist / 235, 0.55, 1.8);
+  list.forEach((p, i) => {
+    const sp = getPin(i);
+    if (sp.userData.kind !== p.kind) { sp.userData.kind = p.kind; sp.material.map = pinTex[p.kind]; sp.material.needsUpdate = true; }
+    sp.visible = true; sp.position.set(p.x, p.y + Math.sin(now / 320 + i) * 0.5 * s, p.z); sp.scale.set(5.4 * s, 7.2 * s, 1);
+  });
+  for (let i = list.length; i < pins.length; i++) pins[i].visible = false;
+}
+
+/* ---- theme ---- */
+function applyTheme(name) {
+  curTheme = name; TH = THEMES[name]; S.theme = name;
+  waterU.uDeep.value.setHex(TH.waterDeep); waterU.uShallow.value.setHex(TH.waterShallow);
+  waterU.uGrid.value.setHex(TH.grid); waterU.uGridAmt.value = TH.gridAmt; waterU.uFoam.value.setHex(TH.foam);
+  hemi.color.setHex(TH.hemiSky); hemi.groundColor.setHex(TH.hemiGround); sun.color.setHex(TH.sunColor);
+  M.concrete.color.setHex(TH.slab); M.quayFace.color.setHex(TH.quayFace); M.hinter.color.setHex(TH.hinter);
+  M.shed.color.setHex(TH.shed); M.crane.color.setHex(TH.crane); M.craneDark.color.setHex(TH.craneDark);
+  M.house.color.setHex(TH.house); M.rtg.color.setHex(TH.rtg); M.deck.color.setHex(TH.deck);
+  M.truckCab.color.setHex(TH.truckCab); M.extCab.color.setHex(TH.extCab); M.chassis.color.setHex(TH.chassis);
+  M.leaf.color.setHex(TH.leaf); M.trunk.color.setHex(TH.trunk); M.pole.color.setHex(TH.pole); M.fender.color.setHex(TH.fender);
+  M.gateOn.color.setHex(TH.gateOn); M.gateOff.color.setHex(TH.gateOff);
+  rainMat.color.setHex(TH.rain);
+  lockedEdgeMat.color.set(TH.pin); lockedEdgeMat.opacity = TH.night ? 0.3 : 0.45; ring.material.color.set(TH.pin);
+  drawGround(); S.ships.forEach(drawShipLabel); drawPins();
+  updateEnvironment(0); updateThemeBtn();
+}
+function updateThemeBtn() {
+  const b = $('#themeBtn'), d = curTheme === 'dark', lab = d ? 'Switch to light theme' : 'Switch to dark theme';
+  b.innerHTML = ico(d ? 'sun' : 'moon'); b.setAttribute('aria-label', lab); b.title = lab;
+}
+function syncTheme() { const t = currentTheme(); if (t !== curTheme) applyTheme(t); }
+if (darkMQ) { if (darkMQ.addEventListener) darkMQ.addEventListener('change', syncTheme); else if (darkMQ.addListener) darkMQ.addListener(syncTheme); }
+new MutationObserver(syncTheme).observe(rootEl, { attributes: true, attributeFilter: ['data-theme'] });
+function toggleTheme() {
+  const next = curTheme === 'dark' ? 'light' : 'dark';
+  rootEl.setAttribute('data-theme', next);
+  try { localStorage.setItem('tidegrid-theme', next); } catch (e) {}
+  syncTheme();
+}
+
+/* ---- toasts + log ---- */
+function toast(html, kind = '') {
+  const el = document.createElement('div'); el.className = 'toast ' + kind;
+  el.innerHTML = ico(kind === 'warn' ? 'alert' : kind === 'good' ? 'check' : 'pulse') + `<span>${html}</span>`;
+  const box = $('#toasts'); box.appendChild(el); while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), 4200);
+}
+const LOG = [];
+function clockStr(m) { const d = Math.floor(m / 1440) + 1, h = Math.floor(m / 60) % 24, mi = Math.floor(m % 60); return { d, hm: pad2(h) + ':' + pad2(mi) }; }
+function log(text, kind) { LOG.unshift({ t: clockStr(S.minutes).hm, text, kind }); if (LOG.length > 60) LOG.pop(); renderLog(); }
+function renderLog() { const el = $('#log'); if (el) el.innerHTML = LOG.slice(0, 40).map(l => `<li class="${l.kind || ''}"><span class="t">${l.t}</span><span>${esc(l.text)}</span></li>`).join(''); }
+function setSpeed(v) { if (S.speed) S.lastSpeed = S.speed; S.speed = v; document.querySelectorAll('.speed button').forEach(b => b.classList.toggle('on', +b.dataset.id === v)); }
+
+/* ---- render helpers ---- */
+const UI = { ptab: 'overview', dtab: 'berths', sheet: null, trackId: null, q: [], qi: 0 };
+const cache = {};
+function put(sel, html) { if (uiHold) return; if (cache[sel] !== html) { cache[sel] = html; $(sel).innerHTML = html; } }
+function shipStatus(s) {
+  if (s.state === 'inbound') return ['Inbound', 'info'];
+  if (s.state === 'anchored') return tideOk(s) ? ['At anchor', 'warn'] : ['Tide hold', 'crit'];
+  if (s.state === 'berthing') return ['Berthing', 'info'];
+  if (s.state === 'working') {
+    if (s.phase === 'discharge') return ['Discharging', 'ok'];
+    if (s.sailing) return ['Sailing short', 'warn'];
+    if (s.call.need - s.call.loaded - s.call.fetching > 0 && yardAvail(s.call) === 0) return ['Awaiting exports', 'warn'];
+    return ['Loading', 'ok'];
+  }
+  return ['Sailed', ''];
+}
+function etcMinutes(s) { const left = (s.lifts - s.lifted) + (s.call ? Math.max(0, s.call.need - s.call.loaded) : 0), n = s.berth ? s.berth.cranes.filter(c => !c.fault).length : 0; return n ? Math.round(left / (n * 16) * 60) : null; }
+const yardFill = () => { let c = 0, cap = 0; S.blocks.forEach(b => { if (b.open) { c += b.count; cap += BLK.cap; } }); return cap ? c / cap : 0; };
+function meter(id, v, warn, crit) { const el = $(id); el.style.width = Math.round(clamp(v, 0, 1) * 100) + '%'; el.className = v >= crit ? 'crit' : v >= warn ? 'warn' : ''; }
+function delta(id, v, text) { const el = $(id); el.textContent = text; el.className = 'delta ' + (v > 0 ? 'up' : v < 0 ? 'down' : 'flat'); }
+const sgn = v => v > 0 ? '+' : v < 0 ? '−' : '±';
+
+/* ---- vessel tracking ---- */
+const STATE_RANK = { working: 0, berthing: 1, anchored: 2, inbound: 3, departing: 4 };
+function trackList() {
+  return S.ships.slice().sort((a, b) => (STATE_RANK[a.state] - STATE_RANK[b.state]) || ((a.berth ? a.berth.x : 0) - (b.berth ? b.berth.x : 0)) || (a.arrivedAt - b.arrivedAt));
+}
+function trackedShip() {
+  if (S.selected && S.selected.type === 'ship' && S.ships.includes(S.selected.ref)) return S.selected.ref;
+  const t = UI.trackId != null && S.ships.find(s => s.id === UI.trackId);
+  return t || trackList()[0] || null;
+}
+function trackHTML() {
+  const p = S.selected;
+  if (p && p.type !== 'ship') return inspectorHTML(p);
+  const s = trackedShip();
+  if (!s) return `<div class="card-h"><h3>${ico('ship')} Vessel tracking</h3></div><div class="empty" style="padding:10px 14px 14px">No vessels inside port limits. New calls appear here as they arrive.</div>`;
+  const call = s.call;
+  const idx = { inbound: 0, anchored: 1, berthing: 2, working: s.phase === 'load' ? 4 : 3, departing: 5 }[s.state] || 0;
+  const etc = etcMinutes(s);
+  const steps = [['Arrived', 'ship', s.arrivedAt], ['Anchor', 'anchor', s.anchoredAt], ['Berth', 'berth', s.clearedAt], ['Discharge', 'crane', s.berthedAt], ['Load', 'stack', s.dischargedAt], ['Sailed', 'check', s.sailedAt]];
+  const li = steps.map(([lb, ic, t], i) => {
+    const st = s.state === 'departing' || i < idx ? 'done' : i === idx ? 'cur' : 'todo';
+    let tm = t != null ? clockStr(t).hm : '';
+    if (i === 1 && t == null && idx > 1) tm = 'Skipped';
+    if (i === 3 && st === 'cur') tm = `${s.lifted}/${s.lifts}`;
+    if (i === 4 && st === 'cur') tm = `${call.loaded}/${call.need}`;
+    if (i === 4 && st === 'done' && !call.need) tm = 'None';
+    if (i === 5 && st !== 'done' && s.state === 'working' && etc != null) tm = 'ETC ' + clockStr(S.minutes + etc).hm;
+    return `<li class="${st}"><span class="dot">${st === 'done' ? ico('check') : ico(ic)}</span><span class="lb">${lb}</span><span class="tm">${tm || '—'}</span></li>`;
+  }).join('');
+  const [stt, cls] = shipStatus(s);
+  const where = s.berth ? `Berth ${s.berth.id} · ${s.berth.cranes.length} cranes` : s.state === 'departing' ? 'Outbound to sea' : `Waiting ${Math.round(S.minutes - s.arrivedAt)} min`;
+  const acts = (!s.berth && s.state !== 'departing') ? openBerths().map(b => { const dis = b.ship || !tideOk(s); return `<button class="btn sm ${dis ? '' : 'primary'}" data-act="assign" data-id="${s.id}:${b.id}" ${dis ? 'disabled' : ''}>Send to Berth ${b.id}</button>`; }).join('') : '';
+  const contract = s.contract ? `<div class="vrow"><span class="pill warn">${ico('bolt')}Contract</span><span class="muted">${Math.max(0, Math.round(s.contract.window - (S.minutes - s.contract.start)))} min left · ${money(s.contract.bonus)}</span></div>` : '';
+  const yardN = callInYard(call), leftN = call.need - call.loaded - call.fetching;
+  const exp = call.need ? `<div class="vrow"><span class="muted">Exports ${call.loaded}/${call.need} on board · ${yardN} in yard · ${call.inbound} at gate${call.rolled ? ` · ${call.rolled} rolled over` : ''}</span></div>` : '<div class="vrow"><span class="muted">Discharge only · no exports booked</span></div>';
+  const waitTxt = s.phase === 'load' && !s.sailing && s.waitExp > 0 && leftN > 0 && yardAvail(call) === 0 ? `<div class="vrow"><span class="pill warn">${ico('alert')}Waiting for exports</span><span class="muted">${S.hold === Infinity ? 'Holding until loaded' : `Sails short in ${Math.max(0, Math.round(S.hold - s.waitExp))} min`}</span></div>` : '';
+  const sailBtn = s.state === 'working' && s.phase === 'load' && !s.sailing && leftN > 0 ? `<button class="btn sm" data-act="sailnow" data-id="${s.id}">Sail now · leave ${leftN}</button>` : '';
+  const tide = !tideOk(s) && !s.berth ? `<div class="vrow"><span class="muted">Draft ${s.draft.toFixed(1)} m needs tide ≥ 1.0 m (now ${S.tide.toFixed(1)} m)</span></div>` : '';
+  const list = trackList(), pos = list.indexOf(s);
+  return `<div class="card-h"><h3>${ico('ship')} Vessel tracking</h3><div class="tnav"><span class="muted num">${pos + 1} of ${list.length}</span><button class="iconbtn sm" data-act="tprev" aria-label="Previous vessel">${ico('chev-l')}</button><button class="iconbtn sm" data-act="tnext" aria-label="Next vessel">${ico('chev-r')}</button></div></div>
+  <div class="trk"><ol class="steps">${li}</ol>
+    <div class="vcard" data-act="focus-ship" data-id="${s.id}"><span class="tile">${ico('ship')}</span>
+      <div class="vinfo"><div class="vid">#V-${String(s.id).padStart(4, '0')}${s.priority ? '<span class="pill warn">Priority</span>' : ''}</div>
+        <div class="vname">MV ${esc(s.name)}</div>
+        <div class="vsub"><i class="ldot" style="background:${hexCss(s.line.accent)}"></i>${esc(s.line.name)} · ${s.lifts} lifts · ${s.draft.toFixed(1)} m</div>
+        <div class="vrow"><span class="pill ${cls}">${stt}</span><span class="muted">${where}</span></div>${exp}${waitTxt}${contract}${tide}
+        ${acts || sailBtn ? `<div class="acts">${acts}${sailBtn}</div>` : ''}</div></div></div>`;
+}
+function inspectorHTML(p) {
+  const r = p.ref; let title = '', sub = '', icon = 'crane', rows = [], acts = '', pill = '';
+  if (p.type === 'crane') {
+    const st = r.fault ? ['Fault', 'crit'] : S.flags.windHold ? ['Wind hold', 'warn'] : r.phase === 'await' && r.waitingTruck ? ['Waiting on tractor', 'warn'] : r.phase === 'idle' ? ['Idle', ''] : ['Working', 'ok'];
+    title = craneName(r); sub = `Ship-to-shore crane · Berth ${r.berth.id}`; pill = `<span class="pill ${st[1]}">${st[0]}</span>`;
+    rows = [['Lifts this game', r.lifts], ['Wind limit', `${S.stormRated ? WIND_RATED : WIND_BASE} kn · now ${Math.round(S.wind)}`], ['Outreach', '19 rows · 32 m boom']];
+    if (r.fault) { rows.push(['Auto-repair in', `${Math.max(0, Math.round(r.faultUntil - S.minutes))} min`]); acts = `<button class="btn sm primary" data-act="repair" data-id="${r.id}" ${S.credits < PRICE.repair ? 'disabled' : ''}>${ico('wrench')}Rush repair · ${money(PRICE.repair)}</button>`; }
+  } else if (p.type === 'block') {
+    icon = 'stack'; title = 'Block ' + r.id;
+    if (r.open) {
+      const f = r.count / BLK.cap, ex = r.role === 'export'; sub = ex ? 'Export block · fed by the gate' : 'Import block · fed by the quay';
+      pill = f >= 0.97 ? '<span class="pill crit">Full</span>' : f >= 0.82 ? '<span class="pill warn">Near full</span>' : `<span class="pill ${ex ? 'warn' : 'info'}">${ex ? 'Export' : 'Import'}</span>`;
+      const ages = r.impT.map(t => S.minutes - t); Object.values(r.expT).forEach(a => a.forEach(t => ages.push(S.minutes - t)));
+      const nE = r.count - r.imp, vessels = Object.keys(r.exp).length;
+      rows = [['Fill', `${r.count} / ${BLK.cap} (${Math.round(f * 100)}%)`], ['Imports', r.imp], ['Exports', `${nE}${vessels ? ` · ${vessels} vessel${vessels > 1 ? 's' : ''}` : ''}`], ['Avg age', ages.length ? hrs(ages.reduce((a, b) => a + b, 0) / ages.length) : '—']];
+      acts = `<span>Role</span>${roleSeg(r)}<span>${vessels > 1 || (vessels && r.imp) ? 'Mixed stacks cause rehandles.' : ''}</span>`;
+    } else {
+      sub = 'Unpaved reserve area'; pill = '<span class="pill">Reserve</span>'; rows = [['Capacity', '192 boxes · 384 TEU']];
+      const next = S.blocks.find(b => !b.open);
+      acts = next === r ? `<button class="btn sm primary" data-act="buy" data-id="block" ${S.credits < PRICE.block ? 'disabled' : ''}>Pave and open · ${money(PRICE.block)}</button>` : `<span>Blocks open in order. Open ${next.id} first.</span>`;
+    }
+  } else if (p.type === 'truck') {
+    const lab = { toBlockPick: ['To export stack', 'warn'], yardLoading: ['Loading at RTG', 'warn'], toCraneLoaded: ['Export to crane', 'warn'], waitLoaded: ['Under the boom', 'warn'], parked: ['Parked at depot', ''], toDepot: ['Returning', ''], toCrane: ['To crane', 'info'], waiting: ['Under the boom', 'warn'], toYard: ['Delivering', 'ok'], unloading: ['Unloading', 'ok'] }[r.state] || [r.state, ''];
+    icon = 'truck'; title = 'YT-' + pad2(r.id); sub = 'Yard tractor'; pill = `<span class="pill ${lab[1]}">${lab[0]}</span>`;
+    rows = [['Load', r.load ? '1 × 40 ft' : 'Empty'], ['Assigned', r.crane ? craneName(r.crane) : r.block ? 'Block ' + r.block.id : '—'], ['Speed', S.autopilot ? 'Autopilot +20%' : 'Standard']];
+  }
+  return `<div class="card-h"><h3>${ico(icon)}${title}<span class="muted" style="font-weight:500">${sub}</span></h3><div class="tnav">${pill}<button class="iconbtn sm" data-act="close" aria-label="Close">${ico('close')}</button></div></div>
+  <div class="insp">${rows.map(([k, v]) => `<div class="metric"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}</div>${acts ? `<div class="insp-acts">${acts}</div>` : ''}`;
+}
+function renderTrack() { put('#track', trackHTML()); }
+
+/* ---- terminal panel ---- */
+function renderSpark() {
+  const d = S.spark.length ? S.spark : [0], max = Math.max(40, ...d) * 1.15;
+  const pts = d.map((v, i) => [d.length === 1 ? 300 : i / (d.length - 1) * 300, 54 - v / max * 48]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' '), last = pts[pts.length - 1];
+  put('#spark', `<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--primary);stop-opacity:.28"/><stop offset="1" style="stop-color:var(--primary);stop-opacity:0"/></linearGradient></defs>
+    <path d="M0 30H300" style="stroke:var(--line-strong)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>
+    <path d="${line} L300 58 L0 58 Z" fill="url(#sg)"/><path d="${line}" fill="none" style="stroke:var(--primary)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <circle cx="${last[0] - 3}" cy="${last[1]}" r="3.2" style="fill:var(--surface);stroke:var(--primary)" stroke-width="2"/>`);
+  $('#spMin').textContent = `${Math.max(1, Math.round(d.length * 10 / 60))} h ago`;
+  $('#spMax').textContent = `Now · ${d[d.length - 1]} /hr`;
+}
+function renderAlerts() {
+  const a = [];
+  if (S.flags.windHold) a.push(['crit', 'wind', `Wind ${Math.round(S.wind)} kn is over the crane limit. Quay stopped.`]);
+  else if (S.storm) a.push(['warn', 'storm', 'Storm in the approaches. Expect wind holds.']);
+  S.cranes.filter(c => c.fault).forEach(c => a.push(['crit', 'wrench', `${craneName(c)} out of service at Berth ${c.berth.id}`, c.id]));
+  if (S.flags.waitingCranes) a.push(['warn', 'truck', `${S.flags.waitingCranes} crane${S.flags.waitingCranes > 1 ? 's' : ''} waiting on tractors. Add tractors.`]);
+  const yf = yardFill();
+  if (S.flags.yardBlocked || yf > 0.95) a.push(['crit', 'stack', 'Yard full. Cranes cannot set boxes down.']);
+  else if (yf > 0.82) a.push(['warn', 'stack', `Yard at ${Math.round(yf * 100)}%. Open a block or a gate lane.`]);
+  if (S.customs) a.push(['warn', 'gate', `Customs hold. Import pickups paused for ${Math.round(S.customs.until - S.minutes)} min.`]);
+  S.ships.filter(s => s.state === 'working' && s.phase === 'load' && !s.sailing && s.waitExp > 0 && yardAvail(s.call) === 0 && s.call.need - s.call.loaded - s.call.fetching > 0)
+    .forEach(s => a.push(['warn', 'ship', `MV ${s.name} waiting on ${s.call.need - s.call.loaded - s.call.fetching} export boxes${S.hold === Infinity ? '' : ` · sails short in ${Math.max(0, Math.round(S.hold - s.waitExp))} min`}`]));
+  if (S.flags.expBlocked) a.push(['crit', 'stack', 'Export blocks full or none set. Gate-in stalled; set a block to Export.']);
+  else { let ec = 0, eu = 0; S.blocks.forEach(b => { if (b.open && b.role === 'export') { ec += BLK.cap; eu += b.count + b.reserved; } }); if (ec && eu / ec > 0.85) a.push(['warn', 'stack', `Export blocks at ${Math.round(eu / ec * 100)}%. Open or switch a block, or shorten the receiving window.`]); }
+  const rh = rehandlesPerHour();
+  if (rh >= 8) a.push(['warn', 'stack', `${rh} rehandles in the last hour from mixed stacks`]);
+  if (S.pickups > 30) a.push(['warn', 'gate', `${Math.round(S.pickups)} import pickups queued at the gate`]);
+  const held = shipWaiting().filter(s => !tideOk(s));
+  if (held.length) a.push(['warn', 'wave', `${held.length} deep-draft vessel${held.length > 1 ? 's' : ''} held for tide`]);
+  const longest = shipWaiting().reduce((m, s) => Math.max(m, S.minutes - s.arrivedAt), 0);
+  if (longest > 90) a.push(['warn', 'anchor', `Longest anchorage wait ${Math.round(longest)} min. Trust slipping.`]);
+  if (S.credits < 0) a.push(['crit', 'coin', 'Treasury overdrawn. Port authority review pending.']);
+  if (!a.length) a.push(['ok', 'check', 'All systems nominal']);
+  const lab = { crit: 'Act now', warn: 'Watch', ok: 'Clear' };
+  put('#alerts', a.map(([k, ic, t, id]) => `<li class="row${id ? ' click' : ''}"${id ? ` data-act="crane-sel" data-id="${id}"` : ''}><span class="tile sm ${k}">${ico(ic)}</span><span>${esc(t)}</span><span class="pill ${k}">${lab[k]}</span></li>`).join(''));
+  S.flags.yardBlocked = false; S.flags.expBlocked = false;
+}
+function renderBlocks() {
+  put('#blocks', S.blocks.filter(b => b.open).map(b => {
+    const f = b.count / BLK.cap, p = f >= 0.97 ? ['crit', 'Full'] : f >= 0.82 ? ['warn', 'Near full'] : ['ok', 'In service'];
+    return `<li class="row click" data-act="block" data-id="${b.i}"><span class="tile sm ${b.role === 'export' ? 'warn' : 'soft'}">${ico('stack')}</span><span><span class="t">Block ${b.id}</span> <span class="muted">· ${b.role === 'export' ? 'Export' : 'Import'} · ${Math.round(f * 100)}%</span></span><span class="n">${b.count}<span class="pill ${p[0]}">${p[1]}</span></span></li>`;
+  }).join(''));
+}
+const BUILD = [
+  { key: 'truck', icon: 'truck', t: 'Yard tractor', p: 'Shuttles boxes from the cranes to the stacks. A crane stalls when no tractor is under its boom.', own: () => `${S.trucks.length} in fleet`, can: () => S.trucks.length < 40 },
+  { key: 'block', icon: 'stack', t: 'Yard block + RTG', p: 'Opens the next stacking block with its own rubber-tyred gantry. Adds 192 slots (384 TEU).', own: () => `${S.blocks.filter(b => b.open).length} of ${S.blocks.length} open`, can: () => S.blocks.some(b => !b.open) },
+  { key: 'gate', icon: 'gate', t: 'Gate lane', p: 'Adds a lane at Gate 2. Each lane handles 40 trucks an hour, shared between export deliveries and import pickups.', own: () => `${S.gateLanes} of 4 lanes`, can: () => S.gateLanes < 4 },
+  { key: 'berth', icon: 'berth', t: 'Berth C', p: 'Dredge the pocket to 16 m and fit fenders. Opens a third quay with one STS crane.', own: () => BERTHS[2].open ? 'Open' : 'Not dredged', can: () => !BERTHS[2].open },
+  { key: 'autopilot', icon: 'bolt', t: 'TheTerminal Autopilot', p: 'Pairs tractors to cranes by travel time. Tractors run 20% faster and crane cycles 12% faster.', own: () => S.autopilot ? 'Installed' : 'Not installed', can: () => !S.autopilot },
+  { key: 'storm', icon: 'storm', t: 'Storm-rated spreaders', p: `Raises the crane wind limit from ${WIND_BASE} to ${WIND_RATED} knots, so most squalls no longer stop the quay.`, own: () => S.stormRated ? 'Installed' : 'Not installed', can: () => !S.stormRated },
+];
+function renderBuild() {
+  put('#build', BUILD.map(b => {
+    const ok = b.can() && S.credits >= PRICE[b.key];
+    return `<div class="item"><span class="tile soft">${ico(b.icon)}</span><div class="top"><span class="t">${b.t}</span><span class="own">${b.own()}</span></div><p>${b.p}</p><div class="act"><span class="price">${money(PRICE[b.key])}</span><button class="btn sm ${ok ? 'primary' : ''}" data-act="buy" data-id="${b.key}" ${ok ? '' : 'disabled'}>${b.can() ? 'Buy' : 'Done'}</button></div></div>`;
+  }).join('') + `<div class="item"><span class="tile soft">${ico('coin')}</span><div class="top"><span class="t">Running costs</span><span class="own">${money(opexPerHour())} / hr</span></div><p>Cranes, tractors, blocks, berths and gate lanes each carry an hourly cost. Every crane lift earns ${money(LIFT_RATE)}; priority calls pay 20% more. Add cranes per berth from the Berths card.</p></div>`);
+}
+
+/* ---- berths / anchorage card ---- */
+function renderDocks() {
+  const ob = openBerths(), q = shipWaiting();
+  $('#cB').textContent = `${ob.filter(b => b.ship).length}/${ob.length}`; $('#cA').textContent = q.length;
+  put('#dBerths', BERTHS.map(b => {
+    if (!b.open) return `<div class="drow locked"><div class="dl"><b>Berth ${b.id}</b><span>16 m</span></div><div class="dm"><span class="muted">Not dredged</span></div><span class="pill">Locked</span><div class="dp"><span>${money(PRICE.berth)}</span></div><button class="btn sm primary" data-act="buy" data-id="berth" ${S.credits < PRICE.berth ? 'disabled' : ''}>Open</button></div>`;
+    const s = b.ship, faults = b.cranes.filter(c => c.fault).length;
+    const add = b.cranes.length < 3 ? `<button class="iconbtn sm" data-act="crane" data-id="${b.id}" title="Add STS crane · ${money(PRICE.crane)}" aria-label="Add crane to Berth ${b.id}" ${S.credits < PRICE.crane ? 'disabled' : ''}>${ico('plus')}</button>` : `<span class="chev">${ico('chev-r')}</span>`;
+    const dl = `<div class="dl"><b>Berth ${b.id}</b><span>${b.cranes.length} STS${faults ? ' · ' + faults + ' down' : ''}</span></div>`;
+    if (!s) return `<div class="drow" data-act="berth-focus" data-id="${b.id}">${dl}<div class="dm"><span class="muted">No vessel assigned</span></div><span class="pill">Available</span><div class="dp"></div>${add}</div>`;
+    const [st, cls] = shipStatus(s), c = s.call, pct = Math.round((s.lifted + c.loaded) / Math.max(1, s.lifts + c.need) * 100);
+    const prog = s.phase === 'load' ? `${c.loaded}/${c.need} on` : `${s.lifted}/${s.lifts} off`;
+    return `<div class="drow" data-act="ship" data-id="${s.id}">${dl}<div class="dm"><span class="vchip">${ico('ship')}<span>MV ${esc(s.name)}</span></span><span class="msub">${esc(s.line.name)}</span></div><span class="pill ${cls}">${st}</span><div class="dp"><div class="bar"><i style="width:${pct}%"></i></div><span>${prog}</span></div>${add}</div>`;
+  }).join(''));
+  put('#queue', q.length ? q.map(s => {
+    const w = Math.round(S.minutes - s.arrivedAt), [st, cls] = shipStatus(s);
+    return `<div class="drow" data-act="ship" data-id="${s.id}"><div class="dl"><b>${w} min</b><span>waiting</span></div><div class="dm"><span class="vchip"><i class="ldot" style="background:${hexCss(s.line.accent)}"></i><span>MV ${esc(s.name)}</span></span><span class="msub">${s.lifts} off · ${s.call.need} on${s.priority ? ' · priority' : ''}</span></div><span class="pill ${cls}">${st}</span><div class="dp"><span>${s.draft.toFixed(1)} m draft</span></div><span class="chev">${ico('chev-r')}</span></div>`;
+  }).join('') : '<div class="empty">No vessels waiting. Higher carrier trust brings more calls.</div>');
+  const cs = S.calls.filter(c => c.state === 'scheduled').sort((a, b) => a.eta - b.eta);
+  $('#cS').textContent = cs.length;
+  put('#dSched', `<div class="legend"><span>Export boxes received before each ETA</span></div>` + cs.map(c => {
+    const mins = Math.round(c.eta - S.minutes), pct = c.need ? Math.round(c.gated / c.need * 100) : 100;
+    const pill = mins < 0 ? ['warn', 'Delayed'] : c.opened != null ? ['info', 'Receiving'] : ['', 'Opens ' + clockStr(c.eta - S.window * 60).hm];
+    return `<div class="drow static"><div class="dl"><b>${clockStr(c.eta).hm}</b><span>${mins < 0 ? 'at anchorage limit' : 'in ' + (mins >= 90 ? (mins / 60).toFixed(1) + ' h' : mins + ' min')}</span></div><div class="dm"><span class="vchip"><i class="ldot" style="background:${hexCss(c.line.accent)}"></i><span>MV ${esc(c.name)}</span></span><span class="msub">${c.lifts} off · ${c.need} on${c.rolled ? ` · ${c.rolled} rolled` : ''}${c.priority ? ' · priority' : ''}</span></div><span class="pill ${pill[0]}">${pill[1]}</span><div class="dp"><div class="bar"><i class="${pct >= 100 ? '' : ''}" style="width:${pct}%"></i></div><span>${c.gated}/${c.need} in yard</span></div><span></span></div>`;
+  }).join(''));
+}
+const hrs = m => (m / 60).toFixed(1) + ' h';
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+function roleSeg(b) { return `<div class="tabs mini">${['import', 'export'].map(r => `<button data-act="role" data-id="${b.i}:${r}" class="${b.role === r ? 'on' : ''}">${r === 'import' ? 'Import' : 'Export'}</button>`).join('')}</div>`; }
+function seg(act, cur, opts) { return `<div class="tabs seg">${opts.map(([v, l]) => `<button data-act="${act}" data-id="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`; }
+function yardAges() {
+  const imp = [], exp = [];
+  S.blocks.forEach(b => { b.impT.forEach(t => imp.push(S.minutes - t)); Object.values(b.expT).forEach(a => a.forEach(t => exp.push(S.minutes - t))); });
+  return { imp, exp };
+}
+function renderYard() {
+  const ag = yardAges(), dI = avg(S.dwell.imp), dE = avg(S.dwell.exp);
+  const blocks = S.blocks.filter(b => b.open).map(b => {
+    const nE = b.count - b.imp, vessels = Object.keys(b.exp).length;
+    return `<li class="brow" data-act="block" data-id="${b.i}"><div class="bl"><span class="t">Block ${b.id}</span><div class="cbar"><i class="ci" style="width:${b.imp / BLK.cap * 100}%"></i><i class="ce" style="width:${nE / BLK.cap * 100}%"></i></div><span class="muted">${b.imp} import · ${nE} export${vessels ? ` (${vessels} vessel${vessels > 1 ? 's' : ''})` : ''} · ${Math.round(b.count / BLK.cap * 100)}% full</span></div>${roleSeg(b)}</li>`;
+  }).join('');
+  put('#pYard', `
+    <div class="sect"><div class="sh"><h3>${ico('gate')}Export receiving window</h3></div>
+      ${seg('win', S.window, [[1, 'Late · 1 h'], [2, 'Standard · 2 h'], [3, 'Early · 3 h']])}
+      <p class="note">How long before each ETA shippers may deliver export boxes. Early windows spread gate traffic and keep loading on time, but boxes sit in the yard longer and take space from discharge.</p></div>
+    <div class="sect"><div class="sh"><h3>${ico('anchor')}Hold ship for late exports</h3></div>
+      ${seg('hold', S.hold === Infinity ? 'inf' : S.hold, [[30, '30 min'], [60, '60 min'], ['inf', 'Until loaded']])}
+      <p class="note">When a ship runs out of boxes to load, it waits this long and then sails short. Every 6 boxes left behind costs 1 trust point, and they stay in the yard for the line's next call.</p></div>
+    <div class="sect"><div class="sh"><h3>${ico('stack')}Yard dwell</h3><span class="muted">${S.rehandlesToday} rehandles today · ${money(REHANDLE_COST)} each</span></div>
+      <div class="mgrid">
+        <div class="metric"><span class="k">Imports in yard</span><span class="v">${ag.imp.length}</span><span class="s">avg age ${ag.imp.length ? hrs(avg(ag.imp)) : '—'}</span></div>
+        <div class="metric"><span class="k">Exports in yard</span><span class="v">${ag.exp.length}</span><span class="s">avg age ${ag.exp.length ? hrs(avg(ag.exp)) : '—'}</span></div>
+        <div class="metric"><span class="k">Import dwell at exit</span><span class="v">${dI == null ? '—' : hrs(dI)}</span><span class="s">${Math.round(S.pickups)} pickups queued</span></div>
+        <div class="metric"><span class="k">Export dwell at loading</span><span class="v">${dE == null ? '—' : hrs(dE)}</span><span class="s">${S.shortShipped} short-shipped so far</span></div>
+      </div></div>
+    <div class="sect"><div class="sh"><h3>${ico('grid')}Block plan</h3><span class="legend"><span><i style="background:var(--primary)"></i>Import</span><span><i style="background:var(--warn)"></i>Export</span></span></div>
+      <p class="note">Discharge goes to import blocks and gate deliveries go to export blocks. Keeping one vessel's exports together avoids rehandles.</p>
+      <ul class="rows">${blocks}</ul></div>`);
+}
+
+/* ---- floating cards: brief + contract offers ---- */
+let hintOpen = true;
+try { hintOpen = localStorage.getItem('tidegrid-hint') !== '0'; } catch (e) {}
+function renderFloat() {
+  let h = '';
+  if (hintOpen) h += `<section class="card fcard"><div class="hd"><div class="hl"><span class="tile soft">${ico('anchor')}</span><div><div class="ttl">You run Terminal 2</div><div class="st">Harbourmaster's brief</div></div></div><button class="x" data-act="hint" aria-label="Dismiss">${ico('close')}</button></div><p>Berth ships quickly and keep tractors under the cranes. Each ship discharges imports, then loads exports that shippers deliver through the gate ahead of its ETA. Balance import and export blocks in the Yard plan so neither side runs out of space.</p><p><kbd>Drag</kbd> pan · <kbd>Right-drag</kbd> rotate · <kbd>Scroll</kbd> zoom · <kbd>Space</kbd> pause · <kbd>/</kbd> search</p></section>`;
+  if (S.contract && !S.contract.accepted) {
+    const c = S.contract;
+    h += `<section class="card fcard contract"><div class="hd"><div class="hl"><span class="tile warn">${ico('bolt')}</span><div><div class="ttl">Priority call · ${esc(c.line.name)}</div><div class="st">MV ${esc(c.name)} · ${c.lifts} off, ${c.exports} on · offer ends in ${Math.max(0, Math.round(c.expires - S.minutes))} min</div></div></div></div><p>Arrives 60 min after you accept. Turn it around within ${c.window} min of arrival for a ${money(c.bonus)} bonus and +4 trust. Miss it and lose 6 trust. Its exports start arriving at the gate straight away.</p><div class="acts"><button class="btn sm primary" data-act="contract-yes">Accept call</button><button class="btn sm" data-act="contract-no">Decline</button></div></section>`;
+  }
+  put('#float', h);
+}
+function renderCards() { renderFloat(); renderTrack(); }
+
+/* ---- main HUD refresh ---- */
+function updateHUD() {
+  const { d, hm } = clockStr(S.minutes);
+  $('#clock').textContent = `Day ${d} · ${hm}`;
+  const lph = liftsPerHour(), opex = opexPerHour(), net = Math.round(lph * LIFT_RATE - opex);
+  const cash = $('#kCash'); cash.textContent = money(S.credits); cash.className = 'v' + (S.credits < 0 ? ' crit' : '');
+  delta('#dCash', net, (net >= 0 ? '+' : '−') + money(Math.abs(net)) + '/h');
+  $('#sCash').textContent = `Opex ${money(opex)}/h · ${money(LIFT_RATE)} per lift`;
+  $('#kLph').innerHTML = `${lph}<small> lifts/h</small>`;
+  const prev = S.spark.length > 6 ? S.spark[S.spark.length - 7] : null, dl = prev == null ? 0 : lph - prev;
+  delta('#dLph', dl, prev == null ? '—' : sgn(dl) + Math.abs(dl));
+  const active = S.cranes.filter(c => c.berth.ship && !c.fault).length;
+  $('#sLph').textContent = `${(S.liftsToday * 2).toLocaleString()} TEU today · ${active ? (lph / active).toFixed(1) : '0'} per crane`;
+  const rep = Math.round(S.rep), dr = rep - Math.round(S.repDay);
+  $('#kRep').innerHTML = `${rep}<small> /100</small>`;
+  delta('#dRep', dr, sgn(dr) + Math.abs(dr) + ' today');
+  const sr = $('#sRep'); sr.textContent = rep >= 75 ? 'Preferred port · more calls' : rep >= 50 ? 'Reliable · steady calls' : 'Under review · fewer calls'; sr.className = 'sb' + (rep < 50 ? ' warn' : '');
+  $('#kTide').innerHTML = `${S.tide.toFixed(1)}<small> m</small>`;
+  const tEl = $('#dTide'); tEl.textContent = S.tideRising ? '▲ Rising' : '▼ Falling'; tEl.className = 'delta ' + (S.tide < 1 ? 'down' : 'flat');
+  const lim = S.stormRated ? WIND_RATED : WIND_BASE, sw = $('#sTide');
+  sw.textContent = `Wind ${Math.round(S.wind)} kn · crane limit ${lim} kn`; sw.className = 'sb' + (S.wind > lim ? ' crit' : S.wind > lim - 8 ? ' warn' : '');
+
+  const ob = openBerths(), occ = ob.filter(b => b.ship).length, wait = shipWaiting();
+  const working = S.ships.filter(s => s.state === 'working').length, anch = wait.filter(s => s.state === 'anchored').length;
+  $('#siteSub').textContent = `${occ} of ${ob.length} berths busy · ${wait.length} waiting`;
+  const op = S.flags.windHold ? ['crit', 'Wind hold'] : S.storm ? ['warn', 'Storm watch'] : S.customs ? ['warn', 'Customs hold'] : S.cranes.some(c => c.fault) ? ['warn', 'Crane fault'] : ['ok', 'Operational'];
+  const opP = $('#opPill'); opP.className = 'pill ' + op[0]; opP.textContent = op[1];
+  $('#opLine').textContent = `${working} working · ${anch} at anchor · ${wait.length - anch} inbound`;
+  $('#kBerth').textContent = `${occ} / ${ob.length}`; meter('#mBerth', occ / ob.length, 2, 2);
+  const yf = yardFill(), nI = importsInYard(), nE = exportsInYard(), capY = S.blocks.filter(b => b.open).length * BLK.cap;
+  $('#kYard').textContent = Math.round(yf * 100) + '%'; $('#mYardI').style.width = (nI / capY * 100) + '%'; $('#mYardE').style.width = (nE / capY * 100) + '%';
+  $('#kYardS').textContent = `${nI} import · ${nE} export`;
+  const ag = yardAges();
+  $('#kDwI').textContent = ag.imp.length ? hrs(avg(ag.imp)) : '—'; $('#kDwIS').textContent = `avg age · ${Math.round(S.pickups)} pickups queued`;
+  $('#kDwE').textContent = ag.exp.length ? hrs(avg(ag.exp)) : '—'; $('#kDwES').textContent = `avg age · window ${S.window} h`;
+  const w = S.waits.length ? Math.round(S.waits.reduce((a, b) => a + b, 0) / S.waits.length) : 0;
+  $('#kWait').textContent = `${w} min`; $('#kQueue').textContent = `${wait.length} at anchor or inbound`;
+  $('#kGate').textContent = `${gateInPerHour()} in · ${gatePerHour()} out`; $('#kGateS').textContent = `per hr · ${S.gateLanes} of 4 lanes${S.customs ? ' · customs hold' : ''}`;
+  const busy = S.trucks.filter(t => t.state !== 'parked' && t.state !== 'toDepot').length, parked = S.trucks.filter(t => t.state === 'parked').length;
+  $('#fleetTxt').textContent = `${busy} of ${S.trucks.length} busy`; meter('#mFleet', busy / Math.max(1, S.trucks.length), 0.86, 2);
+  $('#fleetSub').textContent = `${parked} parked at the depot · Autopilot ${S.autopilot ? 'on' : 'off'}`;
+  renderSpark(); renderAlerts(); renderBlocks(); renderDocks(); renderYard(); renderBuild(); renderTrack(); renderFloat();
+}
+
+/* ---- panels, tabs, sheets ---- */
+function setPtab(id) {
+  UI.ptab = id;
+  document.querySelectorAll('#panel .ph .tabs button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  $('#pOverview').hidden = id !== 'overview'; $('#pYard').hidden = id !== 'yard'; $('#pBuild').hidden = id !== 'build';
+}
+function setDtab(id) {
+  UI.dtab = id;
+  document.querySelectorAll('#docks .tabs button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  $('#dBerths').hidden = id !== 'berths'; $('#dSched').hidden = id !== 'sched'; $('#dAnch').hidden = id !== 'anch'; $('#dLog').hidden = id !== 'log';
+}
+function openSheet(id) {
+  UI.sheet = id;
+  ['panel', 'docks', 'track'].forEach(k => $('#' + k).classList.toggle('open', !!id && k === (id === 'build' ? 'panel' : id)));
+  document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  if (id === 'build') setPtab('build'); else if (id === 'panel') setPtab('overview');
+}
+function onSelect(p) {
+  if (p && p.type === 'ship') UI.trackId = p.ref.id;
+  cache['#track'] = null; renderTrack();
+  if (p && isMobile()) openSheet('track');
+}
+function cycleTrack(dir) {
+  const list = trackList(); if (!list.length) return;
+  const cur = trackedShip(), i = Math.max(0, list.indexOf(cur));
+  const s = list[(i + dir + list.length) % list.length];
+  select({ type: 'ship', ref: s }); focusOn(S.selected);
+}
+function resetView() { camTarget.set(-4, 0, 6); cam.tYaw = 0.6; cam.tPitch = 0.62; cam.tDist = isMobile() ? 330 : 235; cam.focus = null; }
+
+/* ---- search ---- */
+const qIn = $('#q'), qRes = $('#qres');
+function searchItems(q) {
+  q = q.trim().toLowerCase(); if (!q) return [];
+  const out = [];
+  S.ships.filter(s => s.state !== 'departing').forEach(s => out.push({ label: 'MV ' + s.name, sub: `${s.line.name} · ${shipStatus(s)[0]}`, icon: 'ship', p: { type: 'ship', ref: s } }));
+  S.cranes.forEach(c => out.push({ label: craneName(c), sub: `STS crane · Berth ${c.berth.id}`, icon: 'crane', p: { type: 'crane', ref: c } }));
+  S.blocks.forEach(b => out.push({ label: 'Block ' + b.id, sub: b.open ? `${b.count} / ${BLK.cap} boxes` : 'Reserve area', icon: 'stack', p: { type: 'block', ref: b } }));
+  S.trucks.forEach(t => out.push({ label: 'YT-' + pad2(t.id), sub: 'Yard tractor', icon: 'truck', p: { type: 'truck', ref: t } }));
+  return out.filter(o => (o.label + ' ' + o.sub).toLowerCase().includes(q)).slice(0, 7);
+}
+function renderQ() {
+  const v = qIn.value.trim();
+  if (!UI.q.length) { qRes.hidden = !v; qRes.innerHTML = v ? '<div class="empty" style="padding:8px 10px">No matches. Try a vessel name, STS-01, A1 or YT-03.</div>' : ''; return; }
+  qRes.hidden = false;
+  qRes.innerHTML = UI.q.map((o, i) => `<button data-act="sres" data-id="${i}" class="${i === UI.qi ? 'on' : ''}"><span class="tile sm soft">${ico(o.icon)}</span><span style="min-width:0"><span class="t" style="display:block">${esc(o.label)}</span><span class="s">${esc(o.sub)}</span></span>${ico('chev-r', 'chev')}</button>`).join('');
+}
+function pickResult(i) { const o = UI.q[i]; if (!o) return; select(o.p); focusOn(o.p); if (o.p.type !== 'ship') cam.tDist = Math.min(cam.tDist, 150); qRes.hidden = true; qIn.blur(); }
+qIn.addEventListener('input', () => { UI.q = searchItems(qIn.value); UI.qi = 0; renderQ(); });
+qIn.addEventListener('focus', () => { if (qIn.value.trim()) { UI.q = searchItems(qIn.value); renderQ(); } });
+qIn.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); UI.qi = Math.min(UI.q.length - 1, UI.qi + 1); renderQ(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); UI.qi = Math.max(0, UI.qi - 1); renderQ(); }
+  else if (e.key === 'Enter') { e.preventDefault(); pickResult(UI.qi); }
+  else if (e.key === 'Escape') { qIn.blur(); qRes.hidden = true; }
+});
+qIn.addEventListener('blur', () => setTimeout(() => { qRes.hidden = true; }, 160));
+window.addEventListener('keydown', e => { if (e.key === '/' && !(e.target.closest && e.target.closest('input,textarea'))) { e.preventDefault(); qIn.focus(); } });
+
+/* ---- actions ---- */
+function buy(key) {
+  if (S.credits < PRICE[key]) { toast('Not enough in the treasury yet', 'warn'); return; }
+  if (key === 'truck') { addTruck(); log(`Yard tractor YT-${pad2(S.truckSeq)} joined the fleet`, 'good'); }
+  else if (key === 'block') { const b = S.blocks.find(x => !x.open); if (!b) return; openBlock(b, 0); log(`Block ${b.id} paved and RTG commissioned`, 'good'); focusOn({ type: 'block', ref: b }); }
+  else if (key === 'gate') { if (S.gateLanes >= 4) return; S.gateLanes++; log(`Gate 2 lane ${S.gateLanes} opened`, 'good'); }
+  else if (key === 'berth') { const b = BERTHS.find(x => !x.open); if (!b) return; b.open = true; addCrane(b); log(`Berth ${b.id} dredged and open for calls`, 'good'); cam.focus = V3(b.x, 0, 0); }
+  else if (key === 'autopilot') { if (S.autopilot) return; S.autopilot = true; log('TheTerminal Autopilot now dispatching the tractor fleet', 'good'); }
+  else if (key === 'storm') { if (S.stormRated) return; S.stormRated = true; log(`Spreaders re-rated · crane wind limit ${WIND_RATED} kn`, 'good'); }
+  else return;
+  S.credits -= PRICE[key]; toast(`Purchased · <b>−${money(PRICE[key])}</b>`, 'good'); updateHUD();
+}
+function onClick(e) {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  const forceRender = () => { uiHold = false; Object.keys(cache).forEach(k => { cache[k] = null; }); updateHUD(); };
+  if (act === 'speed') setSpeed(+id);
+  else if (act === 'theme') toggleTheme();
+  else if (act === 'zin') cam.tDist = clamp(cam.tDist * 0.8, 45, 460);
+  else if (act === 'zout') cam.tDist = clamp(cam.tDist * 1.25, 45, 460);
+  else if (act === 'rot') cam.tYaw += Math.PI / 4;
+  else if (act === 'home') resetView();
+  else if (act === 'ptab') setPtab(id);
+  else if (act === 'dtab') setDtab(id);
+  else if (act === 'mtab') openSheet(UI.sheet === id ? null : id);
+  else if (act === 'sres') pickResult(+id);
+  else if (act === 'buy') { buy(id); forceRender(); }
+  else if (act === 'crane') {
+    const b = BERTHS.find(x => x.id === id); if (!b || b.cranes.length >= 3) return;
+    if (S.credits < PRICE.crane) return toast('Not enough in the treasury yet', 'warn');
+    S.credits -= PRICE.crane; const c = addCrane(b); log(`${craneName(c)} erected at Berth ${b.id}`, 'good'); forceRender();
+  }
+  else if (act === 'berth-focus') { const b = BERTHS.find(x => x.id === id); cam.focus = V3(b.x, 0, 0); }
+  else if (act === 'ship' || act === 'focus-ship') { const s = S.ships.find(x => x.id === +id); if (s) { select({ type: 'ship', ref: s }); focusOn(S.selected); } }
+  else if (act === 'block') { const b = S.blocks[+id]; if (b) { select({ type: 'block', ref: b }); focusOn(S.selected); } }
+  else if (act === 'crane-sel') { const c = S.cranes.find(x => x.id === +id); if (c) { select({ type: 'crane', ref: c }); focusOn(S.selected); } }
+  else if (act === 'role') { const [bi, r] = id.split(':'); const b = S.blocks[+bi]; if (b && b.role !== r) { b.role = r; drawGround(); log(`Block ${b.id} now takes ${r} boxes`, ''); } forceRender(); }
+  else if (act === 'win') { S.window = +id; log(`Export receiving window set to ${id} h before ETA`, ''); forceRender(); }
+  else if (act === 'hold') { S.hold = id === 'inf' ? Infinity : +id; log(id === 'inf' ? 'Ships now hold at berth until all exports are loaded' : `Ships now hold ${id} min for late exports`, ''); forceRender(); }
+  else if (act === 'sailnow') { const s = S.ships.find(x => x.id === +id); if (s && !s.sailing) { s.sailing = true; log(`MV ${s.name} ordered to sail without ${s.call.need - s.call.loaded - s.call.fetching} boxes`, 'warn'); } forceRender(); }
+  else if (act === 'tprev') cycleTrack(-1);
+  else if (act === 'tnext') cycleTrack(1);
+  else if (act === 'assign') { const [sid, bid] = id.split(':'); const s = S.ships.find(x => x.id === +sid), b = BERTHS.find(x => x.id === bid); if (s && b && assignBerth(s, b, true)) forceRender(); }
+  else if (act === 'repair') { const c = S.cranes.find(x => x.id === +id); if (c && c.fault && S.credits >= PRICE.repair) { S.credits -= PRICE.repair; c.fault = false; log(`${craneName(c)} rush-repaired`, 'good'); forceRender(); } }
+  else if (act === 'close') { S.selected = null; UI.trackId = null; forceRender(); }
+  else if (act === 'hint') { hintOpen = false; try { localStorage.setItem('tidegrid-hint', '0'); } catch (err) {} forceRender(); }
+  else if (act === 'contract-yes' && S.contract) {
+    const c = S.contract; c.accepted = true;
+    const call = makeCall(S.minutes + 60, { line: c.line, lifts: c.lifts, exports: c.exports, name: c.name, priority: true, contract: { start: null, window: c.window, bonus: c.bonus } });
+    call.opened = S.minutes;
+    log(`Accepted ${c.line.name} priority call · MV ${call.name} due ${clockStr(call.eta).hm}`, 'good'); S.contract = null; forceRender();
+  }
+  else if (act === 'contract-no' && S.contract) { log(`Declined ${S.contract.line.name} priority call`, ''); S.contract = null; forceRender(); }
+}
+[hud, topbar].forEach(el => el.addEventListener('click', onClick));
+hud.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.drow,.vcard,.row.click')) { e.preventDefault(); onClick(e); } });
+$('#auto').addEventListener('change', e => { S.autoBerth = e.target.checked; log(S.autoBerth ? 'Auto-berth on · vessels berth in priority, then arrival order' : 'Auto-berth off · send vessels to berths from the tracking card', ''); });
+
+/* ====================================================================
+   Opening scenario: a working morning shift
+   ==================================================================== */
+function startScenario() {
+  const now = S.minutes;
+  S.tide = tideAt(now); S.waterY = -1.95 + S.tide * 0.36;
+  openBlock(S.blocks[0], 104); openBlock(S.blocks[1], 88); openBlock(S.blocks[2], 0, 'export'); openBlock(S.blocks[3], 0, 'export');
+  addCrane(BERTHS[0], false); addCrane(BERTHS[0], false); addCrane(BERTHS[1], false); addCrane(BERTHS[1], false);
+  for (let i = 0; i < 7; i++) addTruck();
+  const [D1, C2] = [S.blocks[2], S.blocks[3]];
+  const cA = makeCall(now - 140, { name: 'Calder Reach', line: LINES[0], lifts: 96, exports: 48 }); cA.opened = now - 260; fillExports(D1, cA, 41, 60, 250);
+  const cB = makeCall(now - 35, { name: 'Tessaline', line: LINES[2], lifts: 72, exports: 40 }); cB.opened = now - 155; fillExports(C2, cB, 31, 30, 150);
+  const cC = makeCall(now - 25, { name: 'Ostra Bay', line: LINES[1], lifts: 118, exports: 56 }); cC.opened = now - 145; fillExports(C2, cC, 24, 20, 140); fillExports(D1, cC, 8, 20, 120);
+  const cD = makeCall(now - 4, { line: LINES[3], exports: 36 }); cD.opened = now - 124; fillExports(C2, cD, 15, 10, 110);
+  const cE = makeCall(now + 55, { line: LINES[4] }); cE.opened = now - 65; fillExports(D1, cE, Math.round(cE.fresh * 0.4), 5, 60);
+  makeCall(now + 140); makeCall(now + 215);
+  const a = spawnShip({ call: cA, at: [BERTHS[0].x, BERTH_Z] });
+  a.state = 'working'; a.berth = BERTHS[0]; BERTHS[0].ship = a; a.heading = 0;
+  a.arrivedAt = now - 140; a.anchoredAt = now - 112; a.clearedAt = now - 74; a.berthedAt = now - 50;
+  for (let k = 0; k < 34; k++) { const s = a.slots[a.slots.length - 1 - k]; s.taken = true; a.untaken--; a.lifted++; a.cargo.setMatrixAt(s.i, ZERO); }
+  a.cargo.instanceMatrix.needsUpdate = true; drawShipLabel(a);
+  const b = spawnShip({ call: cB, at: [BERTHS[1].x - 50, 44] });
+  b.arrivedAt = now - 35; assignBerth(b, BERTHS[1], false); b.heading = -0.5;
+  const c = spawnShip({ call: cC, at: [ANCH[0][0], ANCH[0][1]] }); c.arrivedAt = now - 25; c.state = 'anchored'; c.anchoredAt = now - 18; c.anchorIdx = 0; c.heading = 1.7; c.draft = 15.2; drawShipLabel(c);
+  spawnShip({ call: cD, at: [140, 300] }).arrivedAt = now - 4;
+  S.ships.forEach(s => { s.group.rotation.y = s.heading; });
+  for (let i = 0; i < 18; i++) S.spark.push(Math.round(rand(34, 52)));
+  for (let i = 0; i < 44; i++) S.liftTimes.push(now - rand(0, 59));
+  S.liftTimes.sort((x, y) => x - y);
+  for (let i = 0; i < 30; i++) S.gateTimes.push(now - rand(0, 59));
+  for (let i = 0; i < 26; i++) S.gateInTimes.push(now - rand(0, 59));
+  S.gateTimes.sort((x, y) => x - y); S.gateInTimes.sort((x, y) => x - y);
+  S.dwell.imp = Array.from({ length: 20 }, () => rand(150, 330)); S.dwell.exp = Array.from({ length: 12 }, () => rand(90, 200));
+  S.pickups = 6; S.waits = [22, 41, 18, 64, 35]; S.repDay = 56;
+  S.started = true; drawGround();
+  log('Morning shift on deck · 2 berths working, 1 vessel at anchor', 'good');
+  log('Exports for 5 calls are stacking in D1 and C2 · receiving window 2 h', '');
+}
+
+/* ====================================================================
+   Main loop
+   ==================================================================== */
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+startScenario();
+applyTheme(curTheme);
+setHH();
+renderLog();
+updateHUD();
+let last = performance.now(), uiAcc = 0, dispAcc = 0; S.t = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const real = Math.min(0.05, (now - last) / 1000); last = now;
+  keyPan(real);
+  const total = real * S.speed;
+  const steps = Math.max(1, Math.ceil(total / 0.034));
+  const dt = total / steps;
+  for (let i = 0; i < steps && total > 0; i++) {
+    S.t += dt; S.minutes += dt * G;
+    updateEnvironment(dt);
+    updateEconomy(dt * G);
+    dispAcc += dt; if (dispAcc > 0.2) { dispAcc = 0; dispatch(); }
+    updateShips(dt); updateCranes(dt); updateTrucks(dt); updateTweens(dt);
+  }
+  if (total === 0) updateEnvironment(0);
+  waterU.uTime.value += real * (S.speed ? Math.min(S.speed, 2) : 0.15);
+  placeCamera(real);
+  const q = selPos(S.selected);
+  if (q) { ring.visible = true; ring.position.set(q.x, (S.selected.type === 'ship' ? S.waterY + 0.3 : 0.12), q.z); const pul = 1 + Math.sin(now / 260) * 0.04; ring.scale.set(q.s * pul, q.s * pul, 1); }
+  else ring.visible = false;
+  updatePins(now);
+  uiAcc += real; if (uiAcc > 0.25) { uiAcc = 0; updateHUD(); }
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(t => { last = t; $('#boot').classList.add('gone'); frame(t); });
+})();
+</script>
+
+</body>
+</html>
