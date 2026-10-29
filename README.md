@@ -8,6 +8,9 @@ Vibe-coded with Claude Code + Opus 5.5
 
 Enjoy the Game 🎮 https://datoway.github.io/TheTerminal/
 
+<img width="1534" height="741" alt="TheTerminal" src="https://github.com/user-attachments/assets/2f7f27e5-f8c7-4a39-ae5c-0f7bc64ff87a" />
+
+
 ## Run locally
 
 No build step. Open `index.html` in a browser, or serve the folder:
